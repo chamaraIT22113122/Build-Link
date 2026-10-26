@@ -166,6 +166,9 @@ export class UserService {
           firstName: dto.firstName.trim(),
           lastName: dto.lastName.trim(),
           displayName: `${dto.firstName.trim()} ${dto.lastName.trim()}`,
+          city: dto.city,
+          district: dto.district,
+          phoneNumber: dto.phoneNumber,
         });
         const savedProfile = await profileRepo.save(newProfile);
         savedUser.profile = savedProfile;
@@ -217,6 +220,9 @@ export class UserService {
       firstName: dto.firstName.trim(),
       lastName: dto.lastName.trim(),
       displayName: `${dto.firstName.trim()} ${dto.lastName.trim()}`,
+      city: dto.city,
+      district: dto.district,
+      phoneNumber: dto.phoneNumber,
       createdAt: now,
       updatedAt: now,
     } as UserProfile;
@@ -417,5 +423,9 @@ export class UserService {
 
   public static clearMemoryStoreForTesting(): void {
     memoryStore.clear();
+  }
+
+  public static getMemoryStore(): Map<string, InMemoryUserStore> {
+    return memoryStore;
   }
 }

@@ -4,6 +4,7 @@ import { authRoutes } from './auth.routes';
 import { userRoutes } from './user.routes';
 import { verificationRoutes } from './verification.routes';
 import { postRoutes } from './post.routes';
+import { engineerRoutes } from './engineer.routes';
 import { docsRoutes } from '../docs/swagger';
 
 const router = Router();
@@ -22,6 +23,9 @@ router.use('/verification', verificationRoutes);
 
 // Social Community Feed & Q&A Posts
 router.use('/posts', postRoutes);
+
+// Professional Directory & Matching
+router.use('/engineers', engineerRoutes);
 
 // OpenAPI Documentation
 router.use('/', docsRoutes);

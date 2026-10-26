@@ -127,15 +127,39 @@
 
 ---
 
-## Phase 6: Professional Directory, Search, Filters & Matching (Next Phase)
-1. **Engineer Public Directory & Search API**:
-   - `GET /api/v1/engineers`: Filter by specializations (Structural, Geotechnical, MEP, Project Management), city/district, verification status, and ratings.
-   - `GET /api/v1/engineers/:id`: Comprehensive public profile including credentials, portfolio projects, certifications, and verified badge.
-2. **Direct Consultation Request / Matching System**:
-   - `POST /api/v1/consultations`: Homeowners request engineering review or site visits.
+## Phase 6 Deliverables (Completed)
+1. **Domain Model & Entities**:
+   - `Consultation` entity with client relation (`User`), engineer relation (`EngineerProfile`), consultation type (`ONSITE`, `VIDEO`, `TEXT`, `AUDIO`), status (`REQUESTED`, `ACCEPTED`, `COMPLETED`, `CANCELLED`), and scheduled date.
+   - Dual-mode support for in-memory and TypeORM MS SQL Server queries with comprehensive joins.
+2. **Professional Directory & Consultation API**:
+   - `GET /api/v1/engineers`: Search by keyword, filter by Sri Lankan district, filter by engineering specialization, filter by verified status, and sort by rating/experience/fee.
+   - `GET /api/v1/engineers/:id`: Public profile details with professional credentials, IESL membership, verified status, and ratings.
+   - `POST /api/v1/engineers/consultations`: Homeowner-authenticated booking of technical consultations with consultation type, preferred schedule date, and problem description.
+   - `GET /api/v1/engineers/consultations/my`: Multi-role consultation dashboard feed for both homeowners and engineers.
+   - `PUT /api/v1/engineers/consultations/:id/status`: Participant-authenticated state machine updates (`ACCEPTED`, `COMPLETED`, `CANCELLED`) with strict authorization guards.
+3. **Interactive Frontend Directory & Booking Interfaces**:
+   - `/engineers`: Responsive directory grid with search, district dropdown (all 25 Sri Lankan districts), specialization pills, rating badges, experience counters, and consultation fees.
+   - `/engineers/[id]`: Detailed public profile page highlighting verified badges, IESL registration credentials, technical specializations, experience bio, and interactive consultation booking modal.
+4. **Comprehensive Automated Test Suite**:
+   - 8 new integration tests in `apps/api/src/tests/engineers.test.ts` (bringing total test suite to 46 passing tests).
+   - Production Next.js build validated with all 13 routes compiled and statically pre-rendered.
+
+---
+
+## Phase 7: Project Tracking, Construction Milestones & Collaboration (Next Phase)
+1. **Project Domain Model & Entities**:
+   - `Project` entity: Owner (`User`), Assigned Engineer (`EngineerProfile`), title, location, budget, estimated timeline, stage (`PLANNING`, `DESIGN`, `APPROVALS`, `FOUNDATION`, `STRUCTURAL_WORK`, `ROOFING`, `FINISHING`, `COMPLETED`).
+   - `ProjectMilestone` entity: Project relation, milestone title, target date, completion status, engineer sign-off flag, inspection notes, photos.
+2. **Project Collaboration API**:
+   - `POST /api/v1/projects`: Create a new construction project.
+   - `GET /api/v1/projects`: List user's active projects (homeowner or assigned engineer).
+   - `GET /api/v1/projects/:id`: Project details with timeline and milestones.
+   - `POST /api/v1/projects/:id/milestones`: Add milestones and inspection steps.
+   - `PUT /api/v1/projects/:id/milestones/:milestoneId/sign-off`: Verified engineer milestone certification.
 3. **Interactive Frontend Portal**:
-   - `/engineers`: Directory grid with search, district filters, specialization pills, verified badges, and consultation fee.
-   - `/engineers/[id]`: Detailed profile view with booking modal and past verified answers.
+   - `/projects`: Projects hub with stage timeline progress bars, budget tracking, and status indicators.
+   - `/projects/[id]`: Project workspace with stage milestone checklists, inspection sign-offs, and engineer collaboration notes.
+
 
 
 

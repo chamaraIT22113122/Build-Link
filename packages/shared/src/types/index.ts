@@ -159,6 +159,9 @@ export interface RegisterRequestDto {
   role?: UserRole;
   firstName: string;
   lastName: string;
+  city?: string;
+  district?: string;
+  phoneNumber?: string;
   engineerTitle?: string;
   specialization?: string;
 }
@@ -365,6 +368,70 @@ export interface AskQuestionDto {
   category: string;
   mediaUrls?: string[];
   urgency?: 'LOW' | 'MEDIUM' | 'HIGH';
+}
+
+// Phase 6: Professional Directory & Consultation DTOs
+export interface EngineerDirectoryItemDto {
+  id: string;
+  userId: string;
+  displayName: string;
+  title: string;
+  specializations: string[];
+  yearsOfExperience: number;
+  verificationStatus: VerificationStatus;
+  isVerified: boolean;
+  city?: string;
+  district?: string;
+  avatarUrl?: string;
+  bio?: string;
+  consultationFee: number;
+  availableForConsultation: boolean;
+  ratingAverage: number;
+  ratingCount: number;
+  registrationBody?: string;
+  registrationNumber?: string;
+}
+
+export interface EngineerDirectoryQueryDto {
+  search?: string;
+  specialization?: string;
+  district?: string;
+  verifiedOnly?: boolean;
+  sortBy?: 'rating' | 'experience' | 'fee';
+  sortOrder?: 'ASC' | 'DESC';
+  page?: number;
+  limit?: number;
+}
+
+export interface ConsultationDto {
+  id: string;
+  clientId: string;
+  clientName?: string;
+  clientEmail?: string;
+  engineerId: string;
+  engineerName?: string;
+  engineerTitle?: string;
+  consultationType: ConsultationType;
+  status: ConsultationStatus;
+  scheduledAt?: string;
+  problemDescription: string;
+  attachments?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateConsultationDto {
+  engineerId: string;
+  consultationType: ConsultationType;
+  scheduledAt?: string;
+  problemDescription: string;
+  attachments?: string[];
+}
+
+export interface UpdateConsultationStatusDto {
+  status: ConsultationStatus;
+  scheduledAt?: string;
+  notes?: string;
 }
 
 
