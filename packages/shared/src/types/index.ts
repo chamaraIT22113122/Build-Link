@@ -516,6 +516,48 @@ export interface SignOffMilestoneDto {
   photoUrls?: string[];
 }
 
+// Phase 8: Knowledge Hub & Sri Lankan Building Standards DTOs
+export interface KnowledgeArticleDto {
+  id: string;
+  slug: string;
+  title: string;
+  category: string;
+  summary: string;
+  content: string;
+  coverImageUrl?: string;
+  authorName: string;
+  standardsReference?: string;
+  tags: string[];
+  readingTimeMinutes: number;
+  viewsCount: number;
+  isPublished: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateKnowledgeArticleDto {
+  title: string;
+  slug?: string;
+  category: string;
+  summary: string;
+  content: string;
+  coverImageUrl?: string;
+  authorName?: string;
+  standardsReference?: string;
+  tags?: string[];
+  readingTimeMinutes?: number;
+}
+
+export interface KnowledgeSearchQueryDto {
+  search?: string;
+  category?: string;
+  standardsReference?: string;
+  tag?: string;
+  page?: number;
+  limit?: number;
+}
+
+
 
 
 

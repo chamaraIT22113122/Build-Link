@@ -6,6 +6,7 @@ import { verificationRoutes } from './verification.routes';
 import { postRoutes } from './post.routes';
 import { engineerRoutes } from './engineer.routes';
 import { projectRoutes } from './project.routes';
+import { knowledgeRoutes } from './knowledge.routes';
 import { docsRoutes } from '../docs/swagger';
 
 const router = Router();
@@ -30,6 +31,9 @@ router.use('/engineers', engineerRoutes);
 
 // Project Tracking & Construction Milestones
 router.use('/projects', projectRoutes);
+
+// Knowledge Hub & Sri Lankan Building Standards
+router.use('/knowledge', knowledgeRoutes);
 
 // OpenAPI Documentation
 router.use('/', docsRoutes);

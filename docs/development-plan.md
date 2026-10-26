@@ -168,14 +168,32 @@
 
 ---
 
-## Phase 8: Knowledge Hub & Sri Lankan Construction Standards (Next Phase)
-1. **Knowledge Domain Model & Search API**:
-   - `KnowledgeArticle` entity: Category, title, slug, content, author relation, tags, SLS/CIDA standards references, reading time, view counter.
-   - `GET /api/v1/knowledge`: Full-text search and category filtering for construction guides and Sri Lankan standards (SLS, CIDA, UDA regulations).
-   - `GET /api/v1/knowledge/:slug`: Article details with related articles.
-2. **Interactive Frontend Knowledge Hub**:
-   - `/knowledge`: Article catalog, search, category pills (Building Codes, Foundation, Concrete Technology, Waterproofing, Approvals & Permits).
-   - `/knowledge/[slug]`: Rich article reader with standards reference badges and engineer author attribution.
+## Phase 8 Deliverables (Completed)
+1. **Domain Model & Entities**:
+   - `KnowledgeArticle` entity extended with `standardsReference`, `tagsJson`, `readingTimeMinutes`, `viewsCount`, and `isPublished`.
+   - Dual-mode support for in-memory and TypeORM MS SQL Server queries with comprehensive text search.
+2. **Knowledge Hub & Standards API**:
+   - `GET /api/v1/knowledge`: Full-text search and filtering across technical categories and standards authorities (SLS, CIDA, NBRO, UDA).
+   - `GET /api/v1/knowledge/:slug`: Public article details with reading time and automatic view counter increments.
+   - `POST /api/v1/knowledge`: Authenticated engineer/admin publishing endpoint with auto slug generation.
+   - Curated pre-seeded standards guides: SLS 1253/SLS 522 concrete mixes, CIDA SP/201 clear cover rebar mandates, NBRO hill-country slope stability codes, and UDA 2021 setback regulations.
+3. **Interactive Frontend Knowledge Interfaces**:
+   - `/knowledge`: Technical standards directory with authority pills (SLS, CIDA, NBRO, UDA), category dropdown, keyword search, reading time badges, and author attributions.
+   - `/knowledge/[slug]`: Markdown technical article reader with statutory citations, engineer credentials, and responsive typography.
+4. **Comprehensive Automated Test Suite**:
+   - 7 new integration tests in `apps/api/src/tests/knowledge.test.ts` (bringing total test suite to 62 passing tests).
+   - Production Next.js build validated with all 15 routes statically and dynamically generated.
+
+---
+
+## Phase 9: Real-time Consultations, In-app Messaging & Review Ratings (Next Phase)
+1. **Consultation Messaging & Reviews API**:
+   - `ConsultationMessage` entity & endpoints: In-app chat between homeowner and assigned engineer.
+   - `EngineerReview` entity & rating calculation: Homeowner reviews engineer upon consultation completion (1-5 stars, review text, verified client badge).
+2. **Interactive UI Portals**:
+   - Consultation messaging room & direct engineer chat.
+   - Review submission modal & verified testimonials on engineer public profile.
+
 
 
 

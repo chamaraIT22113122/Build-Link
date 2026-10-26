@@ -30,6 +30,18 @@ export class KnowledgeArticle extends BaseEntityWithTimestamps {
   @Column({ type: 'nvarchar', length: 100 })
   authorName!: string;
 
+  @Column({ type: 'nvarchar', length: 150, nullable: true })
+  standardsReference?: string;
+
+  @Column({ type: 'nvarchar', length: 'MAX', nullable: true })
+  tagsJson?: string;
+
+  @Column({ type: 'int', default: 5 })
+  readingTimeMinutes!: number;
+
+  @Column({ type: 'int', default: 0 })
+  viewsCount!: number;
+
   @Column({ type: 'bit', default: true })
   isPublished!: boolean;
 }
