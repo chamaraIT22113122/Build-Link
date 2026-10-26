@@ -38,4 +38,10 @@ export class Comment extends BaseEntityWithTimestamps {
 
   @Column({ type: 'bit', default: false })
   isMarkedHelpful!: boolean;
+
+  @Column({ type: 'int', default: 0 })
+  helpfulCount!: number;
+
+  @Column({ type: 'bit', default: false })
+  isAcceptedSolution!: boolean;
 }

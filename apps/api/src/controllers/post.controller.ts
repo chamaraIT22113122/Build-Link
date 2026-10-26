@@ -280,4 +280,118 @@ export class PostController {
       );
     }
   }
+
+  public static async listQuestions(req: Request, res: Response): Promise<Response> {
+    try {
+      const status = req.query.status as any;
+      const category = req.query.category as string | undefined;
+      const search = req.query.search as string | undefined;
+      const currentUserId = req.user?.id;
+
+      const questions = await PostService.listQuestions({
+        status,
+        category,
+        search,
+        currentUserId,
+      });
+
+      return sendSuccess(res, questions, 200);
+    } catch (err: unknown) {
+      return sendError(
+        res,
+        'INTERNAL_SERVER_ERROR',
+        'Failed to list questions.',
+        500,
+        err instanceof Error ? err.message : undefined
+      );
+    }
+  }
+
+  public static async resolveQuestion(req: Request, res: Response): Promise<Response> {
+    try {
+      const questionId = req.params.id;
+      const userId = req.user?.id;
+      const userRole = req.user?.role || UserRole.USER;
+      if (!userId) return sendError(res, 'UNAUTHORIZED', 'Unauthorized.', 401);
+
+      const resolved = await PostService.resolveQuestion(
+        questionId,
+        userId,
+        userRole,
+        req.body
+      );
+
+      return sendSuccess(res, resolved, 200);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        if (err.message === 'QUESTION_NOT_FOUND') {
+          return sendError(res, 'NOT_FOUND', 'Question not found.', 404);
+        }
+        if (err.message === 'COMMENT_NOT_FOUND') {
+          return sendError(res, 'NOT_FOUND', 'Accepted solution comment not found.', 404);
+        }
+        if (err.message === 'FORBIDDEN_NOT_AUTHOR') {
+          return sendError(res, 'FORBIDDEN', 'Only the question author or an administrator can mark a question resolved.', 403);
+        }
+      }
+      return sendError(
+        res,
+        'INTERNAL_SERVER_ERROR',
+        'Failed to resolve question.',
+        500,
+        err instanceof Error ? err.message : undefined
+      );
+    }
+  }
+
+  public static async unresolveQuestion(req: Request, res: Response): Promise<Response> {
+    try {
+      const questionId = req.params.id;
+      const userId = req.user?.id;
+      const userRole = req.user?.role || UserRole.USER;
+      if (!userId) return sendError(res, 'UNAUTHORIZED', 'Unauthorized.', 401);
+
+      const updated = await PostService.unresolveQuestion(questionId, userId, userRole);
+      return sendSuccess(res, updated, 200);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        if (err.message === 'QUESTION_NOT_FOUND') {
+          return sendError(res, 'NOT_FOUND', 'Question not found.', 404);
+        }
+        if (err.message === 'FORBIDDEN_NOT_AUTHOR') {
+          return sendError(res, 'FORBIDDEN', 'Only the author can re-open the question.', 403);
+        }
+      }
+      return sendError(
+        res,
+        'INTERNAL_SERVER_ERROR',
+        'Failed to reopen question.',
+        500,
+        err instanceof Error ? err.message : undefined
+      );
+    }
+  }
+
+  public static async toggleHelpfulComment(req: Request, res: Response): Promise<Response> {
+    try {
+      const commentId = req.params.commentId;
+      const userId = req.user?.id;
+      if (!userId) return sendError(res, 'UNAUTHORIZED', 'Sign in to endorse answer.', 401);
+
+      const result = await PostService.toggleHelpfulComment(commentId, userId);
+      return sendSuccess(res, result, 200);
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message === 'COMMENT_NOT_FOUND') {
+        return sendError(res, 'NOT_FOUND', 'Comment not found.', 404);
+      }
+      return sendError(
+        res,
+        'INTERNAL_SERVER_ERROR',
+        'Failed to endorse comment.',
+        500,
+        err instanceof Error ? err.message : undefined
+      );
+    }
+  }
 }
+

@@ -105,5 +105,38 @@
 5. **Comprehensive Automated Test Suite**:
    - 8 new integration tests in `apps/api/src/tests/post.test.ts` (bringing total test suite to 33 passing tests).
 
+---
+
+## Phase 5 Deliverables (Completed)
+1. **Domain Model & Entities**:
+   - `Post` entity extended with `acceptedAnswerId?: string`, `isQuestion: boolean`, `urgency: string`.
+   - `Comment` entity extended with `helpfulCount: number` and `isAcceptedSolution: boolean`.
+   - In-memory fallback stores updated for testing and offline resilience with idempotent helpful voting.
+2. **Q&A System & Resolution API**:
+   - `GET /api/v1/posts/questions/catalog`: Filter questions by resolution status (`resolved=true|false`), category, urgency, and search keywords.
+   - `PUT /api/v1/posts/:id/resolve`: Author-authenticated marking of an answer comment as the accepted solution; updates both post and comment states.
+   - `PUT /api/v1/posts/:id/unresolve`: Author-authenticated reopening of a resolved question.
+   - `POST /api/v1/posts/comments/:commentId/helpful`: Toggle helpful vote on advice comments and track counters.
+3. **Interactive Frontend Q&A Interfaces**:
+   - `/questions`: Dedicated Questions Hub with status tabs ("All Questions", "Needs Answer", "Solved & Accepted"), urgency filters ("Standard", "Urgent", "Emergency"), category list, and question cards.
+   - `/questions/ask`: Structured question submission workflow with title, construction category, urgency level, site city/location, detailed problem description, and photo uploader.
+   - `/feed`: Enhanced comment threads displaying Accepted Solution gold/emerald banners, author "Mark as Solution" / "Reopen" buttons, and "Helpful" counter buttons.
+4. **Comprehensive Automated Test Suite**:
+   - 5 new integration tests in `apps/api/src/tests/qa.test.ts` (bringing total test suite to 38 passing tests).
+   - Production Next.js build validated with all 12 routes statically pre-rendered.
+
+---
+
+## Phase 6: Professional Directory, Search, Filters & Matching (Next Phase)
+1. **Engineer Public Directory & Search API**:
+   - `GET /api/v1/engineers`: Filter by specializations (Structural, Geotechnical, MEP, Project Management), city/district, verification status, and ratings.
+   - `GET /api/v1/engineers/:id`: Comprehensive public profile including credentials, portfolio projects, certifications, and verified badge.
+2. **Direct Consultation Request / Matching System**:
+   - `POST /api/v1/consultations`: Homeowners request engineering review or site visits.
+3. **Interactive Frontend Portal**:
+   - `/engineers`: Directory grid with search, district filters, specialization pills, verified badges, and consultation fee.
+   - `/engineers/[id]`: Detailed profile view with booking modal and past verified answers.
+
+
 
 

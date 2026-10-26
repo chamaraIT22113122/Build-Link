@@ -30,7 +30,7 @@ export const Navbar: React.FC = () => {
 
   const navLinks = [
     { label: 'Community Feed', href: '/feed', icon: Compass },
-    { label: 'Ask a Question', href: '/questions/ask', icon: HelpCircle },
+    { label: 'Questions Hub', href: '/questions', icon: HelpCircle },
     { label: 'Find Engineers', href: '/engineers', icon: Users },
     { label: 'Knowledge Hub', href: '/knowledge', icon: BookOpen },
     { label: 'Projects', href: '/projects', icon: FolderGit2 },

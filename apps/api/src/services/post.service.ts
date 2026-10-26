@@ -13,6 +13,8 @@ import {
   CommentDto,
   CreateCommentDto,
   ToggleLikeResponseDto,
+  ResolveQuestionDto,
+  VoteHelpfulResponseDto,
 } from '@buildlink/shared';
 
 // In-memory fallback stores for offline and testing
@@ -28,6 +30,7 @@ interface InMemoryPost {
   likesCount: number;
   commentsCount: number;
   isResolved: boolean;
+  acceptedAnswerId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -40,12 +43,15 @@ interface InMemoryComment {
   content: string;
   isProfessionalAnswer: boolean;
   isMarkedHelpful: boolean;
+  helpfulCount: number;
+  isAcceptedSolution: boolean;
   createdAt: Date;
 }
 
 const memoryPosts = new Map<string, InMemoryPost>();
 const memoryComments = new Map<string, InMemoryComment>();
 const memoryLikes = new Set<string>(); // "postId:userId"
+const memoryHelpfulVotes = new Set<string>(); // "commentId:userId"
 
 export class PostService {
   private static parseMediaUrls(val: string | unknown): string[] {
@@ -110,6 +116,7 @@ export class PostService {
       likesCount: post.likesCount,
       commentsCount: post.commentsCount,
       isResolved: Boolean(post.isResolved),
+      acceptedAnswerId: post.acceptedAnswerId,
       isLikedByMe,
       createdAt: post.createdAt.toISOString(),
       updatedAt: post.updatedAt.toISOString(),
@@ -375,6 +382,8 @@ export class PostService {
         content: dto.content.trim(),
         isProfessionalAnswer,
         isMarkedHelpful: false,
+        helpfulCount: 0,
+        isAcceptedSolution: false,
       });
 
       await commentRepo.save(comment);
@@ -391,6 +400,8 @@ export class PostService {
         content: dto.content.trim(),
         isProfessionalAnswer,
         isMarkedHelpful: false,
+        helpfulCount: 0,
+        isAcceptedSolution: false,
         createdAt: now,
       });
     }
@@ -412,6 +423,8 @@ export class PostService {
       content: dto.content.trim(),
       isProfessionalAnswer,
       isMarkedHelpful: false,
+      helpfulCount: 0,
+      isAcceptedSolution: false,
       createdAt: now.toISOString(),
     };
   }
@@ -450,6 +463,8 @@ export class PostService {
           content: c.content,
           isProfessionalAnswer: Boolean(c.isProfessionalAnswer),
           isMarkedHelpful: Boolean(c.isMarkedHelpful),
+          helpfulCount: Number(c.helpfulCount || 0),
+          isAcceptedSolution: Boolean(c.isAcceptedSolution),
           createdAt: c.createdAt.toISOString(),
         };
       });
@@ -485,6 +500,8 @@ export class PostService {
           content: c.content,
           isProfessionalAnswer: c.isProfessionalAnswer,
           isMarkedHelpful: c.isMarkedHelpful,
+          helpfulCount: c.helpfulCount || 0,
+          isAcceptedSolution: c.isAcceptedSolution || false,
           createdAt: c.createdAt.toISOString(),
         };
       })
@@ -526,9 +543,180 @@ export class PostService {
     memoryComments.delete(commentId);
   }
 
+  public static async resolveQuestion(
+    questionId: string,
+    userId: string,
+    userRole: UserRole,
+    dto: ResolveQuestionDto
+  ): Promise<PostDto> {
+    const post = await PostService.getPostById(questionId);
+    if (!post) throw new Error('QUESTION_NOT_FOUND');
+    if (post.authorId !== userId && userRole !== UserRole.ADMIN) {
+      throw new Error('FORBIDDEN_NOT_AUTHOR');
+    }
+
+    if (AppDataSource.isInitialized) {
+      const postRepo = AppDataSource.getRepository(Post);
+      const commentRepo = AppDataSource.getRepository(Comment);
+
+      if (dto.acceptedCommentId) {
+        const comment = await commentRepo.findOne({
+          where: { id: dto.acceptedCommentId, postId: questionId },
+        });
+        if (!comment) throw new Error('COMMENT_NOT_FOUND');
+        await commentRepo.update(dto.acceptedCommentId, { isAcceptedSolution: true });
+      }
+
+      await postRepo.update(questionId, {
+        isResolved: true,
+        questionStatus: QuestionStatus.RESOLVED,
+        acceptedAnswerId: dto.acceptedCommentId,
+      });
+
+      const updated = await postRepo.findOne({
+        where: { id: questionId },
+        relations: ['author', 'author.profile', 'author.engineerProfile'],
+      });
+      return PostService.buildPostDto(updated!, userId);
+    }
+
+    const inMem = memoryPosts.get(questionId);
+    if (!inMem) throw new Error('QUESTION_NOT_FOUND');
+
+    if (dto.acceptedCommentId) {
+      const comm = memoryComments.get(dto.acceptedCommentId);
+      if (!comm || comm.postId !== questionId) throw new Error('COMMENT_NOT_FOUND');
+      comm.isAcceptedSolution = true;
+      inMem.acceptedAnswerId = dto.acceptedCommentId;
+    }
+
+    inMem.isResolved = true;
+    inMem.questionStatus = QuestionStatus.RESOLVED;
+    inMem.updatedAt = new Date();
+
+    return PostService.buildPostDto(inMem, userId);
+  }
+
+  public static async unresolveQuestion(
+    questionId: string,
+    userId: string,
+    userRole: UserRole
+  ): Promise<PostDto> {
+    const post = await PostService.getPostById(questionId);
+    if (!post) throw new Error('QUESTION_NOT_FOUND');
+    if (post.authorId !== userId && userRole !== UserRole.ADMIN) {
+      throw new Error('FORBIDDEN_NOT_AUTHOR');
+    }
+
+    if (AppDataSource.isInitialized) {
+      const postRepo = AppDataSource.getRepository(Post);
+      const commentRepo = AppDataSource.getRepository(Comment);
+
+      if (post.acceptedAnswerId) {
+        await commentRepo.update(post.acceptedAnswerId, { isAcceptedSolution: false });
+      }
+
+      await postRepo.update(questionId, {
+        isResolved: false,
+        questionStatus: QuestionStatus.OPEN,
+        acceptedAnswerId: undefined,
+      });
+
+      const updated = await postRepo.findOne({
+        where: { id: questionId },
+        relations: ['author', 'author.profile', 'author.engineerProfile'],
+      });
+      return PostService.buildPostDto(updated!, userId);
+    }
+
+    const inMem = memoryPosts.get(questionId);
+    if (!inMem) throw new Error('QUESTION_NOT_FOUND');
+
+    if (inMem.acceptedAnswerId) {
+      const comm = memoryComments.get(inMem.acceptedAnswerId);
+      if (comm) comm.isAcceptedSolution = false;
+      inMem.acceptedAnswerId = undefined;
+    }
+
+    inMem.isResolved = false;
+    inMem.questionStatus = QuestionStatus.OPEN;
+    inMem.updatedAt = new Date();
+
+    return PostService.buildPostDto(inMem, userId);
+  }
+
+  public static async toggleHelpfulComment(
+    commentId: string,
+    userId: string
+  ): Promise<VoteHelpfulResponseDto> {
+    if (AppDataSource.isInitialized) {
+      const commentRepo = AppDataSource.getRepository(Comment);
+      const comment = await commentRepo.findOne({ where: { id: commentId } });
+      if (!comment) throw new Error('COMMENT_NOT_FOUND');
+
+      const isHelpfulNow = !comment.isMarkedHelpful;
+      const count = isHelpfulNow
+        ? (comment.helpfulCount || 0) + 1
+        : Math.max(0, (comment.helpfulCount || 0) - 1);
+
+      await commentRepo.update(commentId, {
+        isMarkedHelpful: isHelpfulNow,
+        helpfulCount: count,
+      });
+
+      return { isMarkedHelpful: isHelpfulNow, helpfulCount: count };
+    }
+
+    const comm = memoryComments.get(commentId);
+    if (!comm) throw new Error('COMMENT_NOT_FOUND');
+
+    const key = `${commentId}:${userId}`;
+    let isHelpfulNow = false;
+
+    if (memoryHelpfulVotes.has(key)) {
+      memoryHelpfulVotes.delete(key);
+      comm.helpfulCount = Math.max(0, comm.helpfulCount - 1);
+      comm.isMarkedHelpful = comm.helpfulCount > 0;
+      isHelpfulNow = false;
+    } else {
+      memoryHelpfulVotes.add(key);
+      comm.helpfulCount += 1;
+      comm.isMarkedHelpful = true;
+      isHelpfulNow = true;
+    }
+
+    return { isMarkedHelpful: isHelpfulNow, helpfulCount: comm.helpfulCount };
+  }
+
+  public static async listQuestions(params?: {
+    status?: QuestionStatus | 'ALL' | 'UNRESOLVED';
+    category?: string;
+    search?: string;
+    currentUserId?: string;
+  }): Promise<PostDto[]> {
+    const allQuestions = await PostService.listPosts({
+      postType: PostType.QUESTION,
+      category: params?.category,
+      search: params?.search,
+      currentUserId: params?.currentUserId,
+    });
+
+    if (!params?.status || params.status === 'ALL') {
+      return allQuestions;
+    }
+
+    if (params.status === 'UNRESOLVED') {
+      return allQuestions.filter((q) => !q.isResolved && q.questionStatus !== QuestionStatus.RESOLVED);
+    }
+
+    return allQuestions.filter((q) => q.questionStatus === params.status);
+  }
+
   public static clearMemoryForTesting(): void {
     memoryPosts.clear();
     memoryComments.clear();
     memoryLikes.clear();
+    memoryHelpfulVotes.clear();
   }
+
 }

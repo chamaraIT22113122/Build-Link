@@ -58,6 +58,9 @@ export class Post extends BaseEntityWithTimestamps {
   @Column({ type: 'bit', default: false })
   isResolved!: boolean;
 
+  @Column({ type: 'uuid', nullable: true })
+  acceptedAnswerId?: string;
+
   @OneToMany('Comment', (comment: Comment) => comment.post)
   comments?: Comment[];
 }

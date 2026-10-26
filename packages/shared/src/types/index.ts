@@ -286,9 +286,12 @@ export interface PostDto {
   content: string;
   mediaUrls: string[];
   questionStatus?: QuestionStatus;
+  isQuestion?: boolean;
+  urgency?: string;
   likesCount: number;
   commentsCount: number;
   isResolved: boolean;
+  acceptedAnswerId?: string;
   isLikedByMe?: boolean;
   createdAt: string;
   updatedAt: string;
@@ -300,6 +303,8 @@ export interface CreatePostDto {
   category: string;
   postType?: PostType;
   mediaUrls?: string[];
+  isQuestion?: boolean;
+  urgency?: string;
 }
 
 export interface UpdatePostDto {
@@ -328,6 +333,8 @@ export interface CommentDto {
   content: string;
   isProfessionalAnswer: boolean;
   isMarkedHelpful: boolean;
+  helpfulCount: number;
+  isAcceptedSolution: boolean;
   createdAt: string;
 }
 
@@ -341,6 +348,25 @@ export interface ToggleLikeResponseDto {
   isLiked: boolean;
   likesCount: number;
 }
+
+export interface ResolveQuestionDto {
+  acceptedCommentId?: string;
+  resolutionNotes?: string;
+}
+
+export interface VoteHelpfulResponseDto {
+  isMarkedHelpful: boolean;
+  helpfulCount: number;
+}
+
+export interface AskQuestionDto {
+  title: string;
+  content: string;
+  category: string;
+  mediaUrls?: string[];
+  urgency?: 'LOW' | 'MEDIUM' | 'HIGH';
+}
+
 
 
 

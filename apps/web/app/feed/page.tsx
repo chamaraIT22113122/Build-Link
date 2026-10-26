@@ -27,6 +27,10 @@ import {
   Filter,
   Trash2,
   Calendar,
+  CheckCircle2,
+  ThumbsUp,
+  Award,
+  RotateCcw,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -258,6 +262,106 @@ function FeedContent() {
       }
     } catch {
       alert('Failed to post comment.');
+    }
+  };
+
+  // Toggle Helpful Vote on Comment
+  const handleToggleHelpful = async (commentId: string, postId: string) => {
+    if (!token) {
+      router.push('/login?redirect=/feed');
+      return;
+    }
+
+    try {
+      const res = await fetch(`${apiUrl}/posts/comments/${commentId}/helpful`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success && data.data) {
+        setExpandedComments((prev) => ({
+          ...prev,
+          [postId]: (prev[postId] || []).map((c) =>
+            c.id === commentId ? { ...c, helpfulCount: data.data.helpfulCount } : c
+          ),
+        }));
+      }
+    } catch {
+      // Handled silently
+    }
+  };
+
+  // Mark Comment as Accepted Solution
+  const handleResolveQuestion = async (postId: string, commentId: string) => {
+    if (!token) {
+      router.push('/login?redirect=/feed');
+      return;
+    }
+
+    try {
+      const res = await fetch(`${apiUrl}/posts/${postId}/resolve`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ answerId: commentId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === postId
+              ? { ...p, isResolved: true, acceptedAnswerId: commentId }
+              : p
+          )
+        );
+        setExpandedComments((prev) => ({
+          ...prev,
+          [postId]: (prev[postId] || []).map((c) => ({
+            ...c,
+            isAcceptedSolution: c.id === commentId,
+          })),
+        }));
+      } else {
+        alert(data?.error?.message || 'Failed to accept solution.');
+      }
+    } catch {
+      alert('Error accepting solution.');
+    }
+  };
+
+  // Unmark Accepted Solution
+  const handleUnresolveQuestion = async (postId: string) => {
+    if (!token) {
+      router.push('/login?redirect=/feed');
+      return;
+    }
+
+    try {
+      const res = await fetch(`${apiUrl}/posts/${postId}/unresolve`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === postId
+              ? { ...p, isResolved: false, acceptedAnswerId: undefined }
+              : p
+          )
+        );
+        setExpandedComments((prev) => ({
+          ...prev,
+          [postId]: (prev[postId] || []).map((c) => ({
+            ...c,
+            isAcceptedSolution: false,
+          })),
+        }));
+      }
+    } catch {
+      alert('Error updating question resolution.');
     }
   };
 
@@ -556,35 +660,87 @@ function FeedContent() {
                         </p>
                       ) : (
                         <div className="space-y-3">
-                          {commentsList.map((comm) => (
-                            <div
-                              key={comm.id}
-                              className={`p-3.5 rounded-xl border text-xs ${
-                                comm.isProfessionalAnswer
-                                  ? 'bg-blue-50/70 border-brand-blue/40 shadow-sm'
-                                  : 'bg-white border-brand-border'
-                              }`}
-                            >
-                              <div className="flex items-center justify-between mb-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-bold text-brand-navy">
-                                    {comm.author.displayName}
-                                  </span>
-                                  {comm.isProfessionalAnswer && (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-brand-blue text-white shadow-xs">
-                                      <ShieldCheck className="w-3 h-3" /> Verified Engineer Answer
+                          {commentsList.map((comm) => {
+                            const isAccepted = Boolean(
+                              comm.isAcceptedSolution || post.acceptedAnswerId === comm.id
+                            );
+                            const isPostAuthor = Boolean(user && user.id === post.authorId);
+                            const isQuestionPost = Boolean(
+                              post.isQuestion || post.postType === PostType.QUESTION
+                            );
+
+                            return (
+                              <div
+                                key={comm.id}
+                                className={`p-4 rounded-xl border text-xs transition-all ${
+                                  isAccepted
+                                    ? 'bg-emerald-50 border-emerald-400 shadow-sm ring-1 ring-emerald-400'
+                                    : comm.isProfessionalAnswer
+                                    ? 'bg-blue-50/70 border-brand-blue/40 shadow-sm'
+                                    : 'bg-white border-brand-border'
+                                }`}
+                              >
+                                {/* Accepted Solution Banner */}
+                                {isAccepted && (
+                                  <div className="mb-2.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-xs flex items-center justify-between shadow-xs">
+                                    <span className="flex items-center gap-1.5">
+                                      <Award className="w-4 h-4 text-amber-300" />
+                                      Accepted Solution by Question Author
                                     </span>
+                                    {isPostAuthor && (
+                                      <button
+                                        onClick={() => handleUnresolveQuestion(post.id)}
+                                        className="text-[11px] font-semibold underline text-emerald-100 hover:text-white flex items-center gap-1"
+                                      >
+                                        <RotateCcw className="w-3 h-3" /> Reopen Question
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+
+                                <div className="flex items-center justify-between mb-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-bold text-brand-navy">
+                                      {comm.author.displayName}
+                                    </span>
+                                    {comm.isProfessionalAnswer && (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-brand-blue text-white shadow-xs">
+                                        <ShieldCheck className="w-3 h-3" /> Verified Engineer Answer
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className="text-[10px] text-brand-muted">
+                                    {new Date(comm.createdAt).toLocaleDateString()}
+                                  </span>
+                                </div>
+
+                                <p className="text-brand-text leading-relaxed mt-1 whitespace-pre-line">
+                                  {comm.content}
+                                </p>
+
+                                {/* Comment Actions: Helpful & Accept Solution */}
+                                <div className="mt-3 pt-2 border-t border-slate-200/60 flex items-center justify-between">
+                                  <button
+                                    onClick={() => handleToggleHelpful(comm.id, post.id)}
+                                    className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-brand-muted hover:text-brand-blue transition-colors px-2 py-1 rounded-md hover:bg-white"
+                                  >
+                                    <ThumbsUp className="w-3.5 h-3.5" />
+                                    <span>Helpful ({comm.helpfulCount || 0})</span>
+                                  </button>
+
+                                  {isQuestionPost && isPostAuthor && !isAccepted && (
+                                    <button
+                                      onClick={() => handleResolveQuestion(post.id, comm.id)}
+                                      className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100/70 hover:bg-emerald-200 px-2.5 py-1 rounded-lg transition-colors"
+                                    >
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                      Mark as Solution
+                                    </button>
                                   )}
                                 </div>
-                                <span className="text-[10px] text-brand-muted">
-                                  {new Date(comm.createdAt).toLocaleDateString()}
-                                </span>
                               </div>
-                              <p className="text-brand-text leading-relaxed mt-1">
-                                {comm.content}
-                              </p>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
 
