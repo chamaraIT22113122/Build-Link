@@ -218,6 +218,136 @@ export const swaggerSpec = {
         },
       },
     },
+    '/verification/upload': {
+      post: {
+        summary: 'Upload supporting credential file (PDF or Image, max 10MB)',
+        tags: ['Verification'],
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'multipart/form-data': {
+              schema: {
+                type: 'object',
+                properties: {
+                  document: { type: 'string', format: 'binary' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '201': { description: 'Document uploaded successfully' },
+          '400': { description: 'Invalid file type or no file uploaded' },
+        },
+      },
+    },
+    '/verification/apply': {
+      post: {
+        summary: 'Submit engineer verification application with credential documents',
+        tags: ['Verification'],
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['registrationBody', 'registrationNumber', 'documents'],
+                properties: {
+                  registrationBody: { type: 'string', example: 'IESL' },
+                  registrationNumber: { type: 'string', example: 'IESL-M-8891' },
+                  notes: { type: 'string' },
+                  documents: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        documentType: { type: 'string', enum: ['DEGREE_CERTIFICATE', 'IESL_MEMBERSHIP_CARD', 'PRACTICING_LICENSE', 'GOVERNMENT_ID', 'OTHER'] },
+                        fileUrl: { type: 'string' },
+                        originalFilename: { type: 'string' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '201': { description: 'Verification application submitted' },
+          '403': { description: 'Only engineers can apply' },
+        },
+      },
+    },
+    '/verification/status': {
+      get: {
+        summary: 'Get current engineer verification application and audit notes',
+        tags: ['Verification'],
+        security: [{ BearerAuth: [] }],
+        responses: {
+          '200': { description: 'Application status and audit details' },
+        },
+      },
+    },
+    '/verification/admin/applications': {
+      get: {
+        summary: 'List all verification applications for review (Admin only)',
+        tags: ['Verification - Admin'],
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: 'status',
+            in: 'query',
+            schema: { type: 'string', enum: ['PENDING_REVIEW', 'UNDER_REVIEW', 'VERIFIED', 'REJECTED'] },
+          },
+        ],
+        responses: {
+          '200': { description: 'List of applications' },
+          '403': { description: 'Admin access required' },
+        },
+      },
+    },
+    '/verification/admin/applications/{id}/review': {
+      put: {
+        summary: 'Review, approve, or reject verification application (Admin only)',
+        tags: ['Verification - Admin'],
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['status', 'reviewerNotes'],
+                properties: {
+                  status: { type: 'string', enum: ['VERIFIED', 'REJECTED', 'ADDITIONAL_INFO_REQUIRED', 'UNDER_REVIEW'] },
+                  reviewerNotes: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': { description: 'Application reviewed and engineer profile updated' },
+          '403': { description: 'Admin access required' },
+        },
+      },
+    },
+    '/verification/admin/audit-logs': {
+      get: {
+        summary: 'Get system audit trail and compliance history (Admin only)',
+        tags: ['Verification - Admin'],
+        security: [{ BearerAuth: [] }],
+        responses: {
+          '200': { description: 'Audit trail history' },
+          '403': { description: 'Admin access required' },
+        },
+      },
+    },
   },
 };
 

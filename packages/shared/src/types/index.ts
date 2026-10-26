@@ -202,3 +202,69 @@ export interface JwtTokenPayload {
   exp?: number;
 }
 
+export enum DocumentType {
+  DEGREE_CERTIFICATE = 'DEGREE_CERTIFICATE',
+  IESL_MEMBERSHIP_CARD = 'IESL_MEMBERSHIP_CARD',
+  PRACTICING_LICENSE = 'PRACTICING_LICENSE',
+  GOVERNMENT_ID = 'GOVERNMENT_ID',
+  PROJECT_PORTFOLIO = 'PROJECT_PORTFOLIO',
+  OTHER = 'OTHER',
+}
+
+export interface VerificationDocumentDto {
+  id: string;
+  applicationId: string;
+  documentType: DocumentType;
+  fileUrl: string;
+  originalFilename: string;
+  fileSizeBytes?: number;
+  isVerified: boolean;
+  createdAt: string;
+}
+
+export interface VerificationApplicationDto {
+  id: string;
+  engineerProfileId: string;
+  engineerName?: string;
+  engineerEmail?: string;
+  engineerTitle?: string;
+  registrationBody?: string;
+  registrationNumber?: string;
+  status: VerificationStatus;
+  submissionDate: string;
+  reviewerNotes?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  documents: VerificationDocumentDto[];
+}
+
+export interface ApplyVerificationDto {
+  registrationBody: string;
+  registrationNumber: string;
+  notes?: string;
+  documents: Array<{
+    documentType: DocumentType;
+    fileUrl: string;
+    originalFilename: string;
+    fileSizeBytes?: number;
+  }>;
+}
+
+export interface ReviewVerificationDto {
+  status: VerificationStatus;
+  reviewerNotes: string;
+}
+
+export interface AuditLogDto {
+  id: string;
+  actorId?: string;
+  actorEmail?: string;
+  action: string;
+  targetType: string;
+  targetId: string;
+  details: string;
+  ipAddress?: string;
+  createdAt: string;
+}
+
+

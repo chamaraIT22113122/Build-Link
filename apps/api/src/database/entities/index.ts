@@ -7,3 +7,5 @@ export * from './Post';
 export * from './Comment';
 export * from './Consultation';
 export * from './KnowledgeArticle';
+export * from './AuditLog';
+

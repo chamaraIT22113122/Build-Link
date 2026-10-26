@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '../../context/AuthContext';
 import {
   UserRole,
@@ -788,13 +789,12 @@ function ProfileContent() {
                   Upload your chartered engineering credentials, degree transcript, or registration card to receive the verified badge in the professional directory.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => alert('Phase 3 Verification Workflow will be opened in the next phase.')}
+              <Link
+                href="/verify"
                 className="btn-accent text-xs whitespace-nowrap"
               >
                 Submit Documents
-              </button>
+              </Link>
             </div>
           )}
         </div>
