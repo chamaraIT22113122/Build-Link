@@ -267,4 +267,80 @@ export interface AuditLogDto {
   createdAt: string;
 }
 
+export interface PostAuthorDto {
+  id: string;
+  displayName: string;
+  avatarUrl?: string;
+  role: UserRole;
+  isVerifiedEngineer?: boolean;
+  engineerTitle?: string;
+}
+
+export interface PostDto {
+  id: string;
+  authorId: string;
+  author: PostAuthorDto;
+  postType: PostType;
+  category: string;
+  title: string;
+  content: string;
+  mediaUrls: string[];
+  questionStatus?: QuestionStatus;
+  likesCount: number;
+  commentsCount: number;
+  isResolved: boolean;
+  isLikedByMe?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePostDto {
+  title: string;
+  content: string;
+  category: string;
+  postType?: PostType;
+  mediaUrls?: string[];
+}
+
+export interface UpdatePostDto {
+  title?: string;
+  content?: string;
+  category?: string;
+  isResolved?: boolean;
+  questionStatus?: QuestionStatus;
+}
+
+export interface CommentAuthorDto {
+  id: string;
+  displayName: string;
+  avatarUrl?: string;
+  role: UserRole;
+  isVerifiedEngineer?: boolean;
+  engineerTitle?: string;
+}
+
+export interface CommentDto {
+  id: string;
+  postId: string;
+  authorId: string;
+  author: CommentAuthorDto;
+  parentCommentId?: string;
+  content: string;
+  isProfessionalAnswer: boolean;
+  isMarkedHelpful: boolean;
+  createdAt: string;
+}
+
+export interface CreateCommentDto {
+  content: string;
+  parentCommentId?: string;
+  isProfessionalAnswer?: boolean;
+}
+
+export interface ToggleLikeResponseDto {
+  isLiked: boolean;
+  likesCount: number;
+}
+
+
 

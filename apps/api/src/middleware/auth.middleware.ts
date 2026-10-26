@@ -46,6 +46,27 @@ export function authenticateJwt(req: Request, res: Response, next: NextFunction)
   next();
 }
 
+export function optionalAuthenticateJwt(req: Request, _res: Response, next: NextFunction): void {
+  const authHeader = req.headers.authorization;
+
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7).trim();
+    if (token) {
+      const decoded = verifyJwt(token);
+      if (decoded) {
+        req.user = {
+          id: decoded.sub,
+          email: decoded.email,
+          role: decoded.role,
+        };
+      }
+    }
+  }
+
+  next();
+}
+
+
 export function requireRoles(...allowedRoles: UserRole[]) {
   return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.user) {

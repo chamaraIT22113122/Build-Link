@@ -11,7 +11,7 @@
 | **Phase 1** | Foundation, UI Design System, Branding & Architecture | **COMPLETED** |
 | **Phase 2** | Authentication, JWT, Roles & Profile Management | **COMPLETED** |
 | **Phase 3** | Professional Registration, Credential Verification & Audit | **COMPLETED** |
-| **Phase 4** | Social Community Feed, Media, Likes & Comments | Planned |
+| **Phase 4** | Social Community Feed, Media, Likes & Comments | **COMPLETED** |
 | **Phase 5** | Construction Question & Answer System & Resolution | Planned |
 | **Phase 6** | Professional Directory, Search, Filters & Matching | Planned |
 | **Phase 7** | Consultation Requests, Scheduling & Private Messaging | Planned |
@@ -78,5 +78,32 @@
    - `/admin/verification`: Administrative console featuring status filter pills, applicant inspector modal with attached document viewers, determination decision buttons, and immutable audit logs table.
 6. **Automated Verification Test Suite**:
    - 8 new integration tests in `apps/api/src/tests/verification.test.ts` (bringing the total test suite to 25 passing tests).
+
+---
+
+## Phase 4 Deliverables (Completed)
+1. **Domain Model & Entities**:
+   - `Post` entity with author relation, category, post type, media attachment URLs JSON, likes counter, comments counter, and resolution flag.
+   - `PostLike` entity with unique composite index on `(postId, userId)` for idempotent toggles.
+   - `Comment` entity with parent comment relation, verified professional answer flag, and helpful indicator.
+2. **Community Feed & Post Management API**:
+   - `POST /api/v1/posts`: Validates title, category, type, and content; persists post.
+   - `GET /api/v1/posts`: Feed with category, post type, author, and search term filters with chronological order.
+   - `GET /api/v1/posts/:id`: Details with author profile and user's like state (`isLikedByMe`).
+   - `PUT /api/v1/posts/:id`: Author-only editing.
+   - `DELETE /api/v1/posts/:id`: Author or admin deletion.
+   - `POST /api/v1/posts/upload`: Site photo and media upload endpoint.
+3. **Likes & Verified Professional Comments**:
+   - `POST /api/v1/posts/:id/like`: Idempotent like toggle.
+   - `POST /api/v1/posts/:id/comments`: Comment creation with automatic verification badge detection (`isProfessionalAnswer = true` when commenter is a verified engineer).
+   - `GET /api/v1/posts/:id/comments`: Chronological comments thread with author badges.
+   - `DELETE /api/v1/posts/comments/:commentId`: Comment deletion.
+4. **Interactive Next.js Community Feed Portal**:
+   - Responsive feed at `/feed` with sidebar filters (Post Type & Construction Category), discussion search, and composer modal with site photo uploads.
+   - Post cards with author initials avatar, verified engineer badges, image galleries, and live like counter.
+   - Expandable comment threads highlighting verified engineer answers in dedicated styling.
+5. **Comprehensive Automated Test Suite**:
+   - 8 new integration tests in `apps/api/src/tests/post.test.ts` (bringing total test suite to 33 passing tests).
+
 
 

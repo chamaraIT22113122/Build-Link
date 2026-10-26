@@ -8,4 +8,6 @@ export * from './Comment';
 export * from './Consultation';
 export * from './KnowledgeArticle';
 export * from './AuditLog';
+export * from './PostLike';
+
 
