@@ -1,0 +1,45 @@
+export const APP_CONFIG = {
+  name: 'BuildLink',
+  primaryTagline: 'Connect. Build. Grow.',
+  secondaryTagline: 'Your Projects. Your Experts. One Community.',
+  supportingMessage: 'Building stronger communities for better homes.',
+  initialMarket: 'Sri Lanka',
+  colors: {
+    primaryNavy: '#0B1F3A',
+    primaryBlue: '#1769AA',
+    accentOrange: '#FF8A00',
+    white: '#FFFFFF',
+    lightBackground: '#F4F7FB',
+    primaryText: '#172B4D',
+    secondaryText: '#64748B',
+    success: '#16A34A',
+    warning: '#F59E0B',
+    error: '#DC2626',
+    border: '#E2E8F0',
+  },
+} as const;
+
+export const CONSTRUCTION_CATEGORIES = [
+  'Foundations',
+  'Structural Engineering',
+  'Concrete and Reinforcement',
+  'Roofing',
+  'Waterproofing',
+  'Plumbing',
+  'Electrical Systems',
+  'Masonry',
+  'Painting and Finishing',
+  'Flooring and Tiling',
+  'Doors and Windows',
+  'Drainage',
+  'Construction Materials',
+  'Cost Estimation',
+  'Quantity Surveying',
+  'Building Maintenance',
+  'Building Approvals',
+  'Energy Efficiency',
+  'Construction Safety',
+  'Other',
+] as const;
+
+export type ConstructionCategory = typeof CONSTRUCTION_CATEGORIES[number];

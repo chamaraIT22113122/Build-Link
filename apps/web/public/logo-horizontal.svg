@@ -1,0 +1,14 @@
+<svg width="240" height="56" viewBox="0 0 240 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Icon Mark -->
+  <g transform="translate(4, 4)">
+    <rect width="48" height="48" rx="10" fill="#0B1F3A"/>
+    <path d="M12 35V21L19.5 14V35H12Z" fill="#1769AA"/>
+    <path d="M36 35V21L28.5 14V35H36Z" fill="#1769AA"/>
+    <path d="M16 21C16 18.5 18 16.5 20.5 16.5H27.5C30 16.5 32 18.5 32 21V26.5C32 29 30 31 27.5 31H20.5C18 31 16 29 16 26.5V21Z" stroke="#FF8A00" stroke-width="3.5" stroke-linejoin="round"/>
+    <circle cx="24" cy="23.75" r="2.5" fill="#FFFFFF"/>
+  </g>
+  <!-- Text: BuildLink -->
+  <text x="64" y="32" font-family="'Inter', sans-serif" font-size="24" font-weight="800" fill="#0B1F3A" letter-spacing="-0.5">Build<tspan fill="#FF8A00">Link</tspan></text>
+  <!-- Tagline -->
+  <text x="64" y="44" font-family="'Inter', sans-serif" font-size="9.5" font-weight="600" fill="#64748B" letter-spacing="1.2">CONNECT. BUILD. GROW.</text>
+</svg>

@@ -1,0 +1,43 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary-navy: #0B1F3A;
+  --primary-blue: #1769AA;
+  --accent-orange: #FF8A00;
+  --light-bg: #F4F7FB;
+  --primary-text: #172B4D;
+  --muted-text: #64748B;
+  --border-color: #E2E8F0;
+}
+
+html {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  scroll-behavior: smooth;
+  background-color: #F4F7FB;
+  color: #172B4D;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Custom interactive states */
+.btn-primary {
+  @apply inline-flex items-center justify-center px-5 py-2.5 rounded-lg font-medium text-white bg-brand-orange hover:bg-amber-600 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-orange focus:ring-offset-2;
+}
+
+.btn-secondary {
+  @apply inline-flex items-center justify-center px-5 py-2.5 rounded-lg font-medium text-brand-navy bg-white border border-brand-border hover:bg-slate-50 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:ring-offset-2;
+}
+
+.card-base {
+  @apply bg-white rounded-xl border border-brand-border p-6 shadow-sm hover:shadow-md transition-shadow;
+}
