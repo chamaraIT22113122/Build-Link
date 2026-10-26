@@ -146,19 +146,37 @@
 
 ---
 
-## Phase 7: Project Tracking, Construction Milestones & Collaboration (Next Phase)
-1. **Project Domain Model & Entities**:
-   - `Project` entity: Owner (`User`), Assigned Engineer (`EngineerProfile`), title, location, budget, estimated timeline, stage (`PLANNING`, `DESIGN`, `APPROVALS`, `FOUNDATION`, `STRUCTURAL_WORK`, `ROOFING`, `FINISHING`, `COMPLETED`).
-   - `ProjectMilestone` entity: Project relation, milestone title, target date, completion status, engineer sign-off flag, inspection notes, photos.
-2. **Project Collaboration API**:
-   - `POST /api/v1/projects`: Create a new construction project.
-   - `GET /api/v1/projects`: List user's active projects (homeowner or assigned engineer).
-   - `GET /api/v1/projects/:id`: Project details with timeline and milestones.
-   - `POST /api/v1/projects/:id/milestones`: Add milestones and inspection steps.
-   - `PUT /api/v1/projects/:id/milestones/:milestoneId/sign-off`: Verified engineer milestone certification.
-3. **Interactive Frontend Portal**:
-   - `/projects`: Projects hub with stage timeline progress bars, budget tracking, and status indicators.
-   - `/projects/[id]`: Project workspace with stage milestone checklists, inspection sign-offs, and engineer collaboration notes.
+## Phase 7 Deliverables (Completed)
+1. **Domain Model & Entities**:
+   - `Project` entity: Owner relation (`User`), assigned engineer (`EngineerProfile`), location, district, stage (`ProjectStage`), budget, actual spent, and milestone array.
+   - `ProjectMilestone` entity: Project relation, stage, title, completion state, completion date, engineer certification flag, signed-off engineer ID, sign-off timestamp, and inspection notes.
+   - Dual-mode support for in-memory and TypeORM MS SQL Server queries with comprehensive joins.
+2. **Project Workspace & Milestone API**:
+   - `POST /api/v1/projects`: Creates project and automatically scaffolds 10 standard Sri Lankan building stage milestones (`PLANNING` to `FINAL_INSPECTION`).
+   - `GET /api/v1/projects`: User's active projects workspace with progress calculation (% complete, completed vs total count).
+   - `GET /api/v1/projects/:id`: Project detail workspace with milestone checklist and authorization guards.
+   - `PUT /api/v1/projects/:id`: Owner updates stage, budget, and actual expenditure.
+   - `POST /api/v1/projects/:id/milestones`: Add custom site milestones.
+   - `PUT /api/v1/projects/:id/milestones/:milestoneId`: Check off completed milestones.
+   - `PUT /api/v1/projects/:id/milestones/:milestoneId/sign-off`: Verified engineer inspection sign-off certification with professional notes stamp.
+3. **Interactive Frontend Workspace Interfaces**:
+   - `/projects`: Active projects hub with stage progress bars, budget metrics, and new project modal.
+   - `/projects/[id]`: Interactive project workspace featuring visual stage stepper (`PLANNING` → `COMPLETED`), interactive milestone checklist, and engineer inspection sign-off modal.
+4. **Comprehensive Automated Test Suite**:
+   - 9 new integration tests in `apps/api/src/tests/projects.test.ts` (bringing total test suite to 55 passing tests).
+   - Production Next.js build validated with all 14 routes statically and dynamically generated.
+
+---
+
+## Phase 8: Knowledge Hub & Sri Lankan Construction Standards (Next Phase)
+1. **Knowledge Domain Model & Search API**:
+   - `KnowledgeArticle` entity: Category, title, slug, content, author relation, tags, SLS/CIDA standards references, reading time, view counter.
+   - `GET /api/v1/knowledge`: Full-text search and category filtering for construction guides and Sri Lankan standards (SLS, CIDA, UDA regulations).
+   - `GET /api/v1/knowledge/:slug`: Article details with related articles.
+2. **Interactive Frontend Knowledge Hub**:
+   - `/knowledge`: Article catalog, search, category pills (Building Codes, Foundation, Concrete Technology, Waterproofing, Approvals & Permits).
+   - `/knowledge/[slug]`: Rich article reader with standards reference badges and engineer author attribution.
+
 
 
 

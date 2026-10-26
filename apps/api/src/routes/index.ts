@@ -5,6 +5,7 @@ import { userRoutes } from './user.routes';
 import { verificationRoutes } from './verification.routes';
 import { postRoutes } from './post.routes';
 import { engineerRoutes } from './engineer.routes';
+import { projectRoutes } from './project.routes';
 import { docsRoutes } from '../docs/swagger';
 
 const router = Router();
@@ -26,6 +27,9 @@ router.use('/posts', postRoutes);
 
 // Professional Directory & Matching
 router.use('/engineers', engineerRoutes);
+
+// Project Tracking & Construction Milestones
+router.use('/projects', projectRoutes);
 
 // OpenAPI Documentation
 router.use('/', docsRoutes);

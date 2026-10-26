@@ -434,6 +434,89 @@ export interface UpdateConsultationStatusDto {
   notes?: string;
 }
 
+// Phase 7: Project Tracking & Milestone Collaboration DTOs
+export interface ProjectMilestoneDto {
+  id: string;
+  projectId: string;
+  stage: ProjectStage;
+  title: string;
+  description?: string;
+  targetDate?: string;
+  isCompleted: boolean;
+  completedAt?: string;
+  isSignedOffByEngineer: boolean;
+  signedOffByEngineerId?: string;
+  signedOffEngineerName?: string;
+  signedOffAt?: string;
+  engineerNotes?: string;
+  photoUrls?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectDto {
+  id: string;
+  ownerId: string;
+  ownerName?: string;
+  assignedEngineerId?: string;
+  assignedEngineerName?: string;
+  assignedEngineerTitle?: string;
+  title: string;
+  description: string;
+  location: string;
+  district: string;
+  stage: ProjectStage;
+  estimatedBudget: number;
+  actualSpent: number;
+  startDate?: string;
+  targetCompletionDate?: string;
+  milestones: ProjectMilestoneDto[];
+  completedMilestonesCount: number;
+  totalMilestonesCount: number;
+  progressPercentage: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateProjectDto {
+  title: string;
+  description: string;
+  location: string;
+  district: string;
+  stage?: ProjectStage;
+  estimatedBudget?: number;
+  assignedEngineerId?: string;
+  startDate?: string;
+  targetCompletionDate?: string;
+}
+
+export interface UpdateProjectDto {
+  title?: string;
+  description?: string;
+  location?: string;
+  district?: string;
+  stage?: ProjectStage;
+  estimatedBudget?: number;
+  actualSpent?: number;
+  assignedEngineerId?: string;
+  startDate?: string;
+  targetCompletionDate?: string;
+}
+
+export interface CreateMilestoneDto {
+  stage: ProjectStage;
+  title: string;
+  description?: string;
+  targetDate?: string;
+  photoUrls?: string[];
+}
+
+export interface SignOffMilestoneDto {
+  notes?: string;
+  photoUrls?: string[];
+}
+
+
 
 
 

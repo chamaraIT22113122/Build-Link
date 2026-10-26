@@ -12,6 +12,8 @@ import {
   KnowledgeArticle,
   AuditLog,
   PostLike,
+  Project,
+  ProjectMilestone,
 } from './entities';
 
 export const AppDataSource = new DataSource({
@@ -34,6 +36,8 @@ export const AppDataSource = new DataSource({
     KnowledgeArticle,
     AuditLog,
     PostLike,
+    Project,
+    ProjectMilestone,
   ],
   migrations: [__dirname + '/migrations/*.{ts,js}'],
   options: {
