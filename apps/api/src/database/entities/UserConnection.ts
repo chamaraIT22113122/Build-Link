@@ -22,7 +22,7 @@ export class UserConnection extends BaseEntityWithTimestamps {
   @Column({ type: 'uuid' })
   connectedUserId!: string;
 
-  @ManyToOne(() => User, { onDelete: 'CASCADE' })
+  @ManyToOne(() => User, { onDelete: 'NO ACTION' })
   @JoinColumn({ name: 'connectedUserId' })
   connectedUser!: User;
 

@@ -26,7 +26,7 @@ export class Project extends BaseEntityWithTimestamps {
   @Column({ type: 'uuid', nullable: true })
   assignedEngineerId?: string;
 
-  @ManyToOne(() => EngineerProfile, { onDelete: 'SET NULL', nullable: true })
+  @ManyToOne(() => EngineerProfile, { onDelete: 'NO ACTION', nullable: true })
   @JoinColumn({ name: 'assignedEngineerId' })
   assignedEngineer?: EngineerProfile;
 

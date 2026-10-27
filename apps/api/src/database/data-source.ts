@@ -27,7 +27,7 @@ export const AppDataSource = new DataSource({
   username: env.DB_USER,
   password: env.DB_PASSWORD,
   database: env.DB_NAME,
-  synchronize: false, // Use migrations for schema changes
+  synchronize: true, // Automatically synchronize schema on Azure SQL Database
   logging: env.NODE_ENV === 'development',
   entities: [
     User,
@@ -51,10 +51,10 @@ export const AppDataSource = new DataSource({
   options: {
     encrypt: env.DB_ENCRYPT,
     trustServerCertificate: env.DB_TRUST_SERVER_CERTIFICATE,
-    connectTimeout: 5000,
+    connectTimeout: 30000,
   },
   extra: {
-    requestTimeout: 10000,
+    requestTimeout: 30000,
   },
 });
 
@@ -68,7 +68,7 @@ export interface DatabaseConnectionState {
 
 export let dbState: DatabaseConnectionState = {
   isConnected: false,
-  engine: 'Microsoft SQL Server 2025 Express',
+  engine: 'Azure SQL Database (Cloud)',
   host: `${env.DB_HOST}:${env.DB_PORT}`,
   database: env.DB_NAME,
 };
@@ -80,12 +80,12 @@ export async function initializeDatabase(): Promise<DatabaseConnectionState> {
     }
     dbState = {
       isConnected: true,
-      engine: 'Microsoft SQL Server 2025 Express',
+      engine: 'Azure SQL Database (Cloud)',
       host: `${env.DB_HOST}:${env.DB_PORT}`,
       database: env.DB_NAME,
     };
     console.log(
-      `[Database] Successfully connected to Microsoft SQL Server 2025 Express (${env.DB_NAME} at ${env.DB_HOST}:${env.DB_PORT})`
+      `[Database] Successfully connected to Azure SQL Database (${env.DB_NAME} at ${env.DB_HOST}:${env.DB_PORT})`
     );
     return dbState;
   } catch (err: unknown) {
@@ -93,16 +93,15 @@ export async function initializeDatabase(): Promise<DatabaseConnectionState> {
       err instanceof Error ? err.message : 'Unknown database connection error';
     dbState = {
       isConnected: false,
-      engine: 'Microsoft SQL Server 2025 Express',
+      engine: 'Azure SQL Database (Cloud)',
       host: `${env.DB_HOST}:${env.DB_PORT}`,
       database: env.DB_NAME,
       error: errorMsg,
     };
     console.warn(
-      `[Database] Note: Microsoft SQL Server is currently unreachable at ${env.DB_HOST}:${env.DB_PORT}.\n` +
+      `[Database] Note: Azure SQL Database connection error at ${env.DB_HOST}:${env.DB_PORT}.\n` +
         `Reason: ${errorMsg}\n` +
-        `BuildLink API will continue running in diagnostic/offline-ready mode.\n` +
-        `To enable live persistence, ensure SQL Server Express is running and configured as specified in docs/deployment.md.`
+        `BuildLink API will continue running in diagnostic/offline-ready mode.`
     );
     return dbState;
   }
