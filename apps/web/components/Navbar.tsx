@@ -20,6 +20,7 @@ import {
   LogOut,
   HardHat,
   ChevronDown,
+  MessageCircle,
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
@@ -29,11 +30,9 @@ export const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
 
   const navLinks = [
-    { label: 'Community Feed', href: '/feed', icon: Compass },
-    { label: 'Questions Hub', href: '/questions', icon: HelpCircle },
+    { label: 'Feed', href: '/feed', icon: Compass },
     { label: 'Find Engineers', href: '/engineers', icon: Users },
-    { label: 'Knowledge Hub', href: '/knowledge', icon: BookOpen },
-    { label: 'Projects', href: '/projects', icon: FolderGit2 },
+    { label: 'Messages', href: '/messages', icon: MessageCircle },
   ];
 
   const getInitials = () => {

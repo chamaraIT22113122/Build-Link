@@ -6,10 +6,6 @@ import Link from 'next/link';
 import { useAuth } from '../../../context/AuthContext';
 import {
   EngineerDirectoryItemDto,
-  ConsultationType,
-  ConsultationStatus,
-  ConsultationDto,
-  ConsultationMessageDto,
   EngineerReviewDto,
 } from '@buildlink/shared';
 import {
@@ -17,21 +13,13 @@ import {
   Star,
   MapPin,
   Briefcase,
-  Calendar,
   CheckCircle2,
-  Clock,
   ArrowLeft,
-  Video,
-  FileText,
-  MapPinned,
-  Phone,
-  Send,
-  X,
   Building,
   Award,
-  MessageSquare,
-  ThumbsUp,
   MessageCircle,
+  UserPlus,
+  Check,
 } from 'lucide-react';
 
 export default function EngineerDetailsPage() {
@@ -44,23 +32,8 @@ export default function EngineerDetailsPage() {
   const [reviews, setReviews] = useState<EngineerReviewDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-
-  // Consultations for current user
-  const [myConsultations, setMyConsultations] = useState<ConsultationDto[]>([]);
-  const [activeConsultation, setActiveConsultation] = useState<ConsultationDto | null>(null);
-  const [messages, setMessages] = useState<ConsultationMessageDto[]>([]);
-  const [showChatModal, setShowChatModal] = useState(false);
-  const [chatMessage, setChatMessage] = useState('');
-  const [isSendingMessage, setIsSendingMessage] = useState(false);
-
-  // Booking Modal State
-  const [showBookingModal, setShowBookingModal] = useState(false);
-  const [consultationType, setConsultationType] = useState<ConsultationType>(ConsultationType.ONSITE);
-  const [scheduledAt, setScheduledAt] = useState('');
-  const [problemDescription, setProblemDescription] = useState('');
-  const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
-  const [bookingSuccess, setBookingSuccess] = useState(false);
-  const [bookingError, setBookingError] = useState('');
+  const [isConnected, setIsConnected] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
 
   // Review Modal State
   const [showReviewModal, setShowReviewModal] = useState(false);
@@ -97,21 +70,16 @@ export default function EngineerDetailsPage() {
     }
   };
 
-  const fetchUserConsultations = async () => {
+  const checkConnection = async (targetUserId: string) => {
     if (!token) return;
     try {
-      const res = await fetch(`${apiUrl}/engineers/consultations/my`, {
+      const res = await fetch(`${apiUrl}/messages/connections`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
-        setMyConsultations(data.data);
-        const match = data.data.find(
-          (c: ConsultationDto) => c.engineerId === engineerId
-        );
-        if (match) {
-          setActiveConsultation(match);
-        }
+        const found = data.data.some((c: any) => c.connectedUserId === targetUserId);
+        setIsConnected(found);
       }
     } catch {
       // ignore
@@ -122,101 +90,47 @@ export default function EngineerDetailsPage() {
     if (!engineerId) return;
 
     setLoading(true);
-    Promise.all([fetchEngineerData(), fetchReviews(), fetchUserConsultations()]).finally(() => {
+    Promise.all([fetchEngineerData(), fetchReviews()]).finally(() => {
       setLoading(false);
     });
-  }, [engineerId, token]);
+  }, [engineerId]);
 
-  const fetchMessages = async (consultationId: string) => {
-    if (!token) return;
-    try {
-      const res = await fetch(`${apiUrl}/engineers/consultations/${consultationId}/messages`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (data.success && Array.isArray(data.data)) {
-        setMessages(data.data);
-      }
-    } catch {
-      // ignore
+  useEffect(() => {
+    if (engineer?.userId && token) {
+      checkConnection(engineer.userId);
     }
-  };
+  }, [engineer?.userId, token]);
 
-  const handleOpenChat = () => {
-    if (!activeConsultation) return;
-    setShowChatModal(true);
-    fetchMessages(activeConsultation.id);
-  };
-
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatMessage.trim() || !activeConsultation || !token) return;
-
-    setIsSendingMessage(true);
-    try {
-      const res = await fetch(`${apiUrl}/engineers/consultations/${activeConsultation.id}/messages`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ content: chatMessage.trim() }),
-      });
-      const data = await res.json();
-      if (data.success && data.data) {
-        setMessages((prev) => [...prev, data.data]);
-        setChatMessage('');
-      }
-    } catch {
-      // ignore
-    } finally {
-      setIsSendingMessage(false);
-    }
-  };
-
-  const handleBookConsultation = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleConnect = async () => {
     if (!token) {
       router.push(`/login?redirect=/engineers/${engineerId}`);
       return;
     }
+    if (!engineer?.userId) return;
 
-    if (!problemDescription.trim()) {
-      setBookingError('Please describe your construction or site problem.');
-      return;
-    }
-
-    setIsSubmittingBooking(true);
-    setBookingError('');
-
+    setIsConnecting(true);
     try {
-      const res = await fetch(`${apiUrl}/engineers/consultations`, {
+      const res = await fetch(`${apiUrl}/messages/connect/${engineer.userId}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          engineerId,
-          consultationType,
-          scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
-          problemDescription,
-        }),
+        headers: { Authorization: `Bearer ${token}` },
       });
-
       const data = await res.json();
       if (data.success) {
-        setBookingSuccess(true);
-        setActiveConsultation(data.data);
-        fetchUserConsultations();
-      } else {
-        setBookingError(data?.error?.message || 'Failed to submit booking');
+        setIsConnected(true);
       }
     } catch {
-      setBookingError('Network error while booking consultation');
+      // ignore
     } finally {
-      setIsSubmittingBooking(false);
+      setIsConnecting(false);
     }
+  };
+
+  const handleMessage = () => {
+    if (!token) {
+      router.push(`/login?redirect=/messages?userId=${engineer?.userId}`);
+      return;
+    }
+    router.push(`/messages?userId=${engineer?.userId}`);
   };
 
   const handleSubmitReview = async (e: React.FormEvent) => {
@@ -244,7 +158,6 @@ export default function EngineerDetailsPage() {
         body: JSON.stringify({
           rating: reviewRating,
           reviewText: reviewText.trim(),
-          consultationId: activeConsultation?.id,
         }),
       });
 
@@ -282,7 +195,7 @@ export default function EngineerDetailsPage() {
           {error || 'Engineer profile could not be found'}
         </div>
         <Link href="/engineers" className="btn-secondary text-xs inline-flex items-center gap-1.5">
-          <ArrowLeft className="w-3.5 h-3.5" /> Back to Engineers Directory
+          <ArrowLeft className="w-3.5 h-3.5" /> Back to Engineers
         </Link>
       </div>
     );
@@ -296,11 +209,11 @@ export default function EngineerDetailsPage() {
           href="/engineers"
           className="inline-flex items-center gap-2 text-xs font-bold text-brand-muted hover:text-brand-navy transition-colors"
         >
-          <ArrowLeft className="w-4 h-4" /> Back to Verified Directory
+          <ArrowLeft className="w-4 h-4" /> Back to Engineers
         </Link>
       </div>
 
-      {/* Main Profile Card */}
+      {/* Main Profile Card (Facebook Style Profile) */}
       <div className="card-primary p-6 sm:p-8 space-y-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-brand-border">
           <div className="flex items-start sm:items-center gap-5">
@@ -342,39 +255,35 @@ export default function EngineerDetailsPage() {
             </div>
           </div>
 
-          {/* Action CTAs */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
-            <div className="text-left md:text-right">
-              <span className="text-[11px] font-bold text-brand-muted uppercase block">
-                Standard Fee
-              </span>
-              <span className="text-lg font-black text-brand-navy">
-                {engineer.consultationFee > 0
-                  ? `LKR ${engineer.consultationFee.toLocaleString()}`
-                  : 'Free Initial Review'}
-              </span>
-            </div>
-
+          {/* Facebook-style Direct Actions */}
+          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
             <button
-              onClick={() => {
-                if (!token) router.push(`/login?redirect=/engineers/${engineerId}`);
-                else setShowBookingModal(true);
-              }}
-              className="btn-accent text-sm font-bold px-5 py-2.5 shadow-md gap-2"
+              onClick={handleMessage}
+              className="btn-primary text-sm font-bold px-6 py-3 shadow-md gap-2"
             >
-              <Calendar className="w-4 h-4" />
-              Book Consultation
+              <MessageCircle className="w-4 h-4" />
+              Message Engineer
             </button>
 
-            {activeConsultation && (
-              <button
-                onClick={handleOpenChat}
-                className="btn-primary text-sm font-bold px-4 py-2.5 gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
-              >
-                <MessageSquare className="w-4 h-4" />
-                In-App Chat
-              </button>
-            )}
+            <button
+              onClick={handleConnect}
+              disabled={isConnected || isConnecting}
+              className={`px-5 py-3 rounded-xl text-sm font-bold flex items-center gap-2 border transition-all ${
+                isConnected
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700 cursor-default'
+                  : 'bg-white border-brand-border text-brand-navy hover:bg-slate-50'
+              }`}
+            >
+              {isConnected ? (
+                <>
+                  <Check className="w-4 h-4 text-emerald-600" /> Connected
+                </>
+              ) : (
+                <>
+                  <UserPlus className="w-4 h-4 text-brand-muted" /> Add / Connect
+                </>
+              )}
+            </button>
           </div>
         </div>
 
@@ -436,16 +345,16 @@ export default function EngineerDetailsPage() {
         </div>
       </div>
 
-      {/* Phase 9: Verified Client Reviews Section */}
+      {/* Verified Reviews Section */}
       <div className="card-primary p-6 sm:p-8 space-y-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-brand-border">
           <div>
             <h2 className="text-lg font-black text-brand-navy flex items-center gap-2">
               <Star className="w-5 h-5 fill-amber-400 text-amber-400" />
-              Verified Client Reviews & Inspections ({reviews.length})
+              Verified Reviews & Testimonials ({reviews.length})
             </h2>
             <p className="text-xs text-brand-muted mt-1">
-              Feedback from verified Sri Lankan homeowners and developers who completed consultations
+              Feedback from Sri Lankan homeowners and developers who collaborated with {engineer.displayName}
             </p>
           </div>
 
@@ -463,10 +372,10 @@ export default function EngineerDetailsPage() {
 
         {reviews.length === 0 ? (
           <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-brand-border space-y-3">
-            <MessageCircle className="w-8 h-8 text-brand-muted mx-auto" />
-            <p className="text-xs font-bold text-brand-navy">No client reviews yet</p>
+            <Star className="w-8 h-8 text-brand-muted mx-auto" />
+            <p className="text-xs font-bold text-brand-navy">No reviews yet</p>
             <p className="text-xs text-brand-muted max-w-sm mx-auto">
-              Be the first verified client to book a site visit or consultation and rate {engineer.displayName}.
+              Be the first to leave a review for {engineer.displayName}.
             </p>
           </div>
         ) : (
@@ -483,10 +392,10 @@ export default function EngineerDetailsPage() {
                     </div>
                     <div>
                       <span className="text-xs font-bold text-brand-navy block">
-                        {rev.clientName || 'Verified Homeowner'}
+                        {rev.clientName || 'Homeowner'}
                       </span>
                       <span className="text-[10px] text-emerald-700 font-semibold flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Verified Client Inspection
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Verified Review
                       </span>
                     </div>
                   </div>
@@ -511,184 +420,13 @@ export default function EngineerDetailsPage() {
 
                 <div className="text-[10px] text-brand-muted pt-2 border-t border-slate-100 flex items-center justify-between">
                   <span>{new Date(rev.createdAt).toLocaleDateString('en-LK', { dateStyle: 'medium' })}</span>
-                  <span className="text-brand-blue font-bold">Audited Feedback</span>
+                  <span className="text-brand-blue font-bold">Community Feedback</span>
                 </div>
               </div>
             ))}
           </div>
         )}
       </div>
-
-      {/* Booking Modal */}
-      {showBookingModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl border border-brand-border max-h-[90vh] overflow-y-auto space-y-5">
-            <div className="flex items-center justify-between pb-3 border-b border-brand-border">
-              <div>
-                <h3 className="text-lg font-bold text-brand-navy">
-                  Book Engineering Consultation
-                </h3>
-                <p className="text-xs text-brand-muted">
-                  With {engineer.displayName} ({engineer.title})
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  setShowBookingModal(false);
-                  setBookingSuccess(false);
-                }}
-                className="text-brand-muted hover:text-brand-navy font-bold text-lg"
-              >
-                ✕
-              </button>
-            </div>
-
-            {bookingSuccess ? (
-              <div className="py-6 text-center space-y-4">
-                <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
-                  <CheckCircle2 className="w-8 h-8" />
-                </div>
-                <h4 className="text-base font-bold text-brand-navy">
-                  Consultation Request Sent!
-                </h4>
-                <p className="text-xs text-brand-muted max-w-sm mx-auto">
-                  Your request has been submitted to {engineer.displayName}. You can now exchange direct in-app messages in the consultation thread.
-                </p>
-                <div className="flex justify-center gap-3">
-                  <button
-                    onClick={() => {
-                      setShowBookingModal(false);
-                      handleOpenChat();
-                    }}
-                    className="btn-accent text-xs font-bold px-4 py-2"
-                  >
-                    Open In-App Chat
-                  </button>
-                  <button
-                    onClick={() => setShowBookingModal(false)}
-                    className="btn-secondary text-xs"
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <form onSubmit={handleBookConsultation} className="space-y-4">
-                {bookingError && (
-                  <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-brand-error text-xs">
-                    {bookingError}
-                  </div>
-                )}
-
-                {/* Consultation Type Selector */}
-                <div>
-                  <label className="block text-xs font-bold text-brand-navy uppercase tracking-wider mb-2">
-                    Consultation Type
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      {
-                        type: ConsultationType.ONSITE,
-                        label: 'On-Site Inspection',
-                        icon: MapPinned,
-                      },
-                      {
-                        type: ConsultationType.VIDEO,
-                        label: 'Online Video Review',
-                        icon: Video,
-                      },
-                      {
-                        type: ConsultationType.TEXT,
-                        label: 'Plan / Structural Review',
-                        icon: FileText,
-                      },
-                      {
-                        type: ConsultationType.AUDIO,
-                        label: 'Phone Consultation',
-                        icon: Phone,
-                      },
-                    ].map((opt) => {
-                      const Icon = opt.icon;
-                      const isSelected = consultationType === opt.type;
-                      return (
-                        <button
-                          key={opt.type}
-                          type="button"
-                          onClick={() => setConsultationType(opt.type)}
-                          className={`p-3 rounded-xl border text-left flex items-center gap-2.5 transition-all ${
-                            isSelected
-                              ? 'bg-blue-50 border-brand-blue ring-1 ring-brand-blue text-brand-navy'
-                              : 'bg-white border-brand-border text-brand-text hover:bg-slate-50'
-                          }`}
-                        >
-                          <Icon className={`w-4 h-4 ${isSelected ? 'text-brand-blue' : 'text-brand-muted'}`} />
-                          <span className="text-xs font-bold">{opt.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Preferred Date & Time */}
-                <div>
-                  <label className="block text-xs font-bold text-brand-navy uppercase tracking-wider mb-1">
-                    Preferred Date & Time (Optional)
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={scheduledAt}
-                    onChange={(e) => setScheduledAt(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-brand-border text-xs text-brand-navy bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue"
-                  />
-                </div>
-
-                {/* Problem Description */}
-                <div>
-                  <label className="block text-xs font-bold text-brand-navy uppercase tracking-wider mb-1">
-                    Project & Site Description *
-                  </label>
-                  <textarea
-                    rows={4}
-                    required
-                    value={problemDescription}
-                    onChange={(e) => setProblemDescription(e.target.value)}
-                    placeholder="Describe your site location, structural issue, blueprint questions, or requirements for this consultation..."
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-brand-border text-xs text-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-blue"
-                  />
-                </div>
-
-                {/* Fee Notice */}
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs flex items-center justify-between">
-                  <span className="text-brand-muted">Consultation Fee</span>
-                  <span className="font-bold text-brand-navy">
-                    {engineer.consultationFee > 0
-                      ? `LKR ${engineer.consultationFee.toLocaleString()}`
-                      : 'Free Initial Review'}
-                  </span>
-                </div>
-
-                {/* Actions */}
-                <div className="flex items-center justify-end gap-3 pt-3 border-t border-brand-border">
-                  <button
-                    type="button"
-                    onClick={() => setShowBookingModal(false)}
-                    className="btn-secondary text-xs"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmittingBooking}
-                    className="btn-accent text-xs font-bold px-5 py-2.5"
-                  >
-                    {isSubmittingBooking ? 'Submitting...' : 'Confirm Request'}
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Write Review Modal */}
       {showReviewModal && (
@@ -700,7 +438,7 @@ export default function EngineerDetailsPage() {
                   Rate & Review {engineer.displayName}
                 </h3>
                 <p className="text-xs text-brand-muted">
-                  Share your experience regarding engineering rigor, responsiveness, and report quality
+                  Share your experience regarding responsiveness, structural quality, and advice
                 </p>
               </div>
               <button
@@ -749,20 +487,16 @@ export default function EngineerDetailsPage() {
               {/* Review Text */}
               <div>
                 <label className="block text-xs font-bold text-brand-navy uppercase tracking-wider mb-1">
-                  Detailed Inspection & Feedback *
+                  Detailed Feedback *
                 </label>
                 <textarea
                   rows={4}
                   required
                   value={reviewText}
                   onChange={(e) => setReviewText(e.target.value)}
-                  placeholder="Describe the consultation quality, accuracy of structural or architectural advice, compliance with Sri Lankan standards..."
+                  placeholder="Describe your experience, technical guidance, structural advice, and professional responsiveness..."
                   className="w-full px-3.5 py-2.5 rounded-xl border border-brand-border text-xs text-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-blue"
                 />
-              </div>
-
-              <div className="p-3 rounded-xl bg-blue-50 border border-brand-blue/30 text-[11px] text-brand-blue">
-                Reviews are marked with a Verified Client badge and audited to maintain institutional integrity.
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-brand-border">
@@ -778,118 +512,9 @@ export default function EngineerDetailsPage() {
                   disabled={isSubmittingReview}
                   className="btn-accent text-xs font-bold px-5 py-2.5"
                 >
-                  {isSubmittingReview ? 'Submitting...' : 'Post Verified Review'}
+                  {isSubmittingReview ? 'Submitting...' : 'Post Review'}
                 </button>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* In-App Consultation Messaging Drawer / Modal */}
-      {showChatModal && activeConsultation && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-3xl max-w-2xl w-full h-[650px] flex flex-col shadow-2xl border border-brand-border overflow-hidden">
-            {/* Header */}
-            <div className="p-4 sm:p-5 border-b border-brand-border bg-slate-50 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-brand-blue text-white flex items-center justify-center font-bold">
-                  {engineer.displayName?.[0] || 'E'}
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-brand-navy flex items-center gap-2">
-                    {engineer.displayName}
-                    <span className="badge-verified text-[10px] py-0.5">Verified Consultation</span>
-                  </h3>
-                  <p className="text-[11px] text-brand-muted">
-                    Type: {activeConsultation.consultationType} • Status: {activeConsultation.status}
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setShowChatModal(false)}
-                className="text-brand-muted hover:text-brand-navy font-bold text-xl px-2"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Problem Description Banner */}
-            <div className="px-5 py-2.5 bg-blue-50/60 border-b border-blue-100 text-xs text-brand-navy">
-              <span className="font-bold text-brand-blue uppercase tracking-wider text-[10px] mr-2">
-                Consultation Case:
-              </span>
-              {activeConsultation.problemDescription}
-            </div>
-
-            {/* Messages Thread */}
-            <div className="flex-1 overflow-y-auto p-5 space-y-3.5 bg-slate-50/40">
-              {messages.length === 0 ? (
-                <div className="text-center py-12 text-brand-muted text-xs">
-                  No messages exchanged yet. Start the conversation with your engineer!
-                </div>
-              ) : (
-                messages.map((m) => {
-                  const isMe = m.senderId === user?.id;
-                  return (
-                    <div
-                      key={m.id}
-                      className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
-                    >
-                      <div className="flex items-center gap-1.5 mb-1 text-[11px] text-brand-muted">
-                        <span className="font-bold text-brand-navy">{m.senderName}</span>
-                        <span>•</span>
-                        <span>{new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                      </div>
-
-                      <div
-                        className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-xs ${
-                          isMe
-                            ? 'bg-brand-blue text-white rounded-br-none shadow-sm'
-                            : 'bg-white text-brand-navy border border-brand-border rounded-bl-none shadow-xs'
-                        }`}
-                      >
-                        <p className="leading-relaxed whitespace-pre-line">{m.content}</p>
-                        {m.attachments && m.attachments.length > 0 && (
-                          <div className="mt-2 pt-2 border-t border-white/20 space-y-1">
-                            {m.attachments.map((att, idx) => (
-                              <a
-                                key={idx}
-                                href={att}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-[11px] underline block truncate hover:opacity-80"
-                              >
-                                📎 Attachment #{idx + 1}
-                              </a>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            {/* Message Input Footer */}
-            <form onSubmit={handleSendMessage} className="p-3 sm:p-4 border-t border-brand-border bg-white flex gap-2">
-              <input
-                type="text"
-                value={chatMessage}
-                onChange={(e) => setChatMessage(e.target.value)}
-                placeholder="Type your message, structural query, or site update..."
-                className="flex-1 px-4 py-2.5 rounded-xl border border-brand-border text-xs text-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-blue"
-              />
-              <button
-                type="submit"
-                disabled={isSendingMessage || !chatMessage.trim()}
-                className="btn-accent px-4 py-2.5 text-xs font-bold gap-1.5 shrink-0"
-              >
-                <Send className="w-3.5 h-3.5" />
-                Send
-              </button>
             </form>
           </div>
         </div>

@@ -417,8 +417,56 @@ export async function seedDatabase(): Promise<void> {
     console.warn('[Seed] Note on consultation seeding:', err);
   }
 
+  // 10. Seed Facebook Messenger-style Direct Private Messages & Attachments
+  try {
+    const { MessagingService } = await import('../services/messaging.service');
+
+    // Conversation 1: Dilshan <-> Eng. Kamal Silva (Structural)
+    await MessagingService.sendMessage(
+      client.id,
+      kamal.id,
+      'Ayubowan Eng. Kamal, I am constructing a two-storey house in Dehiwala and need your advice on the slab beam reinforcement layout.',
+      ['https://images.unsplash.com/photo-1503387762-592deb58ef4e?w=800&auto=format&fit=crop&q=80']
+    );
+
+    await MessagingService.sendMessage(
+      kamal.id,
+      client.id,
+      'Ayubowan Dilshan! I have received your site photo. Are you using Grade 25 or Grade 30 concrete? Make sure the clear cover is at least 40mm for coastal proximity in Dehiwala.'
+    );
+
+    await MessagingService.sendMessage(
+      client.id,
+      kamal.id,
+      'We are using ready-mix Grade 30. Here is the bar bending schedule and the site progress video for your review.',
+      [
+        'https://storage.buildlink.lk/docs/bar_bending_schedule_dehiwala.pdf',
+        'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+      ]
+    );
+
+    // Conversation 2: Dilshan <-> Eng. Anura Wickramasinghe (Geotechnical / NBRO)
+    await MessagingService.sendMessage(
+      client.id,
+      anura.id,
+      'Hello Eng. Anura, we are starting excavation on the Peradeniya hillside slope. Sending you the stepped retaining wall blueprint.'
+    );
+
+    await MessagingService.sendMessage(
+      anura.id,
+      client.id,
+      'Hello Dilshan, great. I inspected the soil bearing test results. Please ensure weep holes are installed every 1.5 meters for adequate monsoon drainage.',
+      ['https://images.unsplash.com/photo-1541888946425-d0fbb18615f3?w=800&auto=format&fit=crop&q=80']
+    );
+
+    console.log('[Seed] Created Facebook-style private chat threads with image, document, and video attachments');
+  } catch (err) {
+    console.warn('[Seed] Note on direct message seeding:', err);
+  }
+
   console.log('[Seed] Test fixtures and demonstration data ready.');
 }
+
 
 if (require.main === module) {
   import('./data-source').then(({ initializeDatabase }) => {

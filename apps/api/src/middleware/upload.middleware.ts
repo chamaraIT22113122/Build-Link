@@ -42,3 +42,48 @@ export const uploadVerificationDocs = multer({
     }
   },
 });
+
+// Chat Media Uploads (Images, Videos, Blueprints, Documents, Audio)
+const chatUploadDir = path.resolve(process.cwd(), env.STORAGE_LOCAL_PATH, 'chat');
+if (!fs.existsSync(chatUploadDir)) {
+  fs.mkdirSync(chatUploadDir, { recursive: true });
+}
+
+const chatStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    cb(null, chatUploadDir);
+  },
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const safeName = `chat-${Date.now()}-${randomUUID()}${ext}`;
+    cb(null, safeName);
+  },
+});
+
+export const uploadChatMedia = multer({
+  storage: chatStorage,
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB for videos & large blueprints
+  },
+  fileFilter: (_req, file, cb) => {
+    // Permit common image, video, audio, and document formats
+    const allowed = [
+      'image/',
+      'video/',
+      'audio/',
+      'application/pdf',
+      'application/zip',
+      'application/x-zip-compressed',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument',
+      'text/plain',
+    ];
+    const isAllowed = allowed.some((prefix) => file.mimetype.startsWith(prefix));
+    if (isAllowed) {
+      cb(null, true);
+    } else {
+      cb(new Error('INVALID_FILE_TYPE: Unsupported media attachment format.'));
+    }
+  },
+});
+

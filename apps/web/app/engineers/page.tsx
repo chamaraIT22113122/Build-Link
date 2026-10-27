@@ -14,14 +14,18 @@ import {
   MapPin,
   Briefcase,
   Search,
-  Filter,
-  Calendar,
   CheckCircle2,
   HardHat,
-  Sparkles,
-  ArrowRight,
+  MessageCircle,
+  UserPlus,
   SlidersHorizontal,
   ChevronDown,
+  Building2,
+  Mountain,
+  Zap,
+  Compass,
+  Home,
+  Check,
 } from 'lucide-react';
 
 const SRI_LANKA_DISTRICTS = [
@@ -53,30 +57,29 @@ const SRI_LANKA_DISTRICTS = [
   'Kegalle',
 ];
 
-const POPULAR_SPECIALIZATIONS = [
-  'All Specializations',
-  'Structural Analysis',
-  'Foundation Design',
-  'High-Rise Concrete',
-  'Geotechnical Engineering',
-  'MEP & Electrical Systems',
-  'Waterproofing & Remediation',
-  'Civil Project Management',
-  'Roof & Truss Engineering',
+const CONSTRUCTION_CATEGORIES = [
+  { label: 'All Categories', value: 'All Specializations', icon: Compass },
+  { label: 'Structural Engineering', value: 'Structural', icon: Building2 },
+  { label: 'Geotechnical & NBRO', value: 'Geotechnical', icon: Mountain },
+  { label: 'MEP & Solar Electrical', value: 'MEP', icon: Zap },
+  { label: 'Foundation & Earthworks', value: 'Foundation', icon: HardHat },
+  { label: 'Architecture & Residential', value: 'Residential', icon: Home },
 ];
 
 function EngineersDirectoryContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user } = useAuth();
+  const { user, token } = useAuth();
 
   const [engineers, setEngineers] = useState<EngineerDirectoryItemDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDistrict, setSelectedDistrict] = useState('All Districts');
-  const [selectedSpec, setSelectedSpec] = useState('All Specializations');
+  const [selectedCategory, setSelectedCategory] = useState('All Specializations');
   const [verifiedOnly, setVerifiedOnly] = useState(true);
-  const [sortBy, setSortBy] = useState<'rating' | 'experience' | 'fee'>('rating');
+  const [sortBy, setSortBy] = useState<'rating' | 'experience'>('rating');
+  const [connectedIds, setConnectedIds] = useState<Set<string>>(new Set());
+  const [connectingId, setConnectingId] = useState<string | null>(null);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050/api/v1';
 
@@ -87,8 +90,28 @@ function EngineersDirectoryContent() {
     const s = searchParams.get('specialization');
     if (q) setSearchQuery(q);
     if (d) setSelectedDistrict(d);
-    if (s) setSelectedSpec(s);
+    if (s) setSelectedCategory(s);
   }, [searchParams]);
+
+  // Load user connections if signed in
+  useEffect(() => {
+    if (!token) return;
+    const fetchConnections = async () => {
+      try {
+        const res = await fetch(`${apiUrl}/messages/connections`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data)) {
+          const ids = new Set<string>(data.data.map((c: any) => c.connectedUserId));
+          setConnectedIds(ids);
+        }
+      } catch {
+        // ignore
+      }
+    };
+    fetchConnections();
+  }, [token]);
 
   const loadEngineers = async () => {
     setLoading(true);
@@ -96,19 +119,23 @@ function EngineersDirectoryContent() {
       const queryParts: string[] = [];
       if (searchQuery.trim()) queryParts.push(`search=${encodeURIComponent(searchQuery.trim())}`);
       if (selectedDistrict !== 'All Districts') queryParts.push(`district=${encodeURIComponent(selectedDistrict)}`);
-      if (selectedSpec !== 'All Specializations') queryParts.push(`specialization=${encodeURIComponent(selectedSpec)}`);
+      if (selectedCategory !== 'All Specializations') queryParts.push(`specialization=${encodeURIComponent(selectedCategory)}`);
       if (verifiedOnly) queryParts.push('verifiedOnly=true');
-      queryParts.push(`sortBy=${sortBy}`);
 
-      const queryString = queryParts.length ? `?${queryParts.join('&')}` : '';
-
-      const res = await fetch(`${apiUrl}/engineers${queryString}`);
+      const url = `${apiUrl}/engineers${queryParts.length > 0 ? `?${queryParts.join('&')}` : ''}`;
+      const res = await fetch(url);
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
-        setEngineers(data.data);
+        let sorted = [...data.data];
+        if (sortBy === 'rating') {
+          sorted.sort((a, b) => b.ratingAverage - a.ratingAverage);
+        } else if (sortBy === 'experience') {
+          sorted.sort((a, b) => b.yearsOfExperience - a.yearsOfExperience);
+        }
+        setEngineers(sorted);
       }
-    } catch {
-      // Handled silently
+    } catch (err) {
+      console.error('Failed to load engineers:', err);
     } finally {
       setLoading(false);
     }
@@ -116,59 +143,106 @@ function EngineersDirectoryContent() {
 
   useEffect(() => {
     loadEngineers();
-  }, [searchQuery, selectedDistrict, selectedSpec, verifiedOnly, sortBy]);
+  }, [selectedDistrict, selectedCategory, verifiedOnly, sortBy]);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    loadEngineers();
+  };
+
+  const handleConnect = async (engineerUserId: string) => {
+    if (!token) {
+      router.push(`/login?redirect=/engineers`);
+      return;
+    }
+
+    setConnectingId(engineerUserId);
+    try {
+      const res = await fetch(`${apiUrl}/messages/connect/${engineerUserId}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setConnectedIds((prev) => new Set(prev).add(engineerUserId));
+      }
+    } catch {
+      // ignore
+    } finally {
+      setConnectingId(null);
+    }
+  };
+
+  const handleMessage = (engineerUserId: string) => {
+    if (!token) {
+      router.push(`/login?redirect=/messages?userId=${engineerUserId}`);
+      return;
+    }
+    router.push(`/messages?userId=${engineerUserId}`);
+  };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-      {/* Hero Header */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-brand-navy via-[#102c52] to-brand-blue text-white p-8 sm:p-10 shadow-xl">
-        <div className="relative z-10 max-w-3xl">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/10 backdrop-blur-md text-brand-orange text-xs font-bold uppercase tracking-wider mb-3">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 animate-fadeIn">
+      {/* Header Banner */}
+      <div className="bg-gradient-to-r from-brand-navy via-slate-900 to-brand-blue rounded-3xl p-6 sm:p-10 text-white relative overflow-hidden shadow-xl">
+        <div className="relative z-10 max-w-2xl space-y-3">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md text-xs font-semibold text-blue-200 border border-white/10">
             <ShieldCheck className="w-4 h-4 text-brand-orange" />
-            Verified Professional Network
+            <span>Verified Sri Lankan Construction Engineers</span>
           </div>
-          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
-            Find Certified Civil & Structural Engineers
+
+          <h1 className="text-2xl sm:text-4xl font-black tracking-tight">
+            Find & Connect with Engineers
           </h1>
-          <p className="mt-2 text-blue-100 text-sm sm:text-base leading-relaxed">
-            Connect with registered Sri Lankan engineers for site inspections, structural integrity assessments, blueprint reviews, and construction consultations.
+
+          <p className="text-sm text-slate-300 leading-relaxed">
+            Directly connect with certified structural, geotechnical, and MEP engineers across Sri Lanka. Message them freely with your site photos, drawings, and queries like Messenger.
           </p>
-
-          <div className="mt-6 flex flex-wrap items-center gap-4 text-xs font-medium text-blue-100">
-            <span className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              IESL & Official Bodies Verified
-            </span>
-            <span className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              Direct Consultation Booking
-            </span>
-            <span className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              Transparent Pricing & Ratings
-            </span>
-          </div>
         </div>
-
-        {/* Decorative backdrop shapes */}
-        <div className="absolute -right-20 -bottom-20 w-80 h-80 rounded-full bg-brand-orange/20 blur-3xl pointer-events-none" />
       </div>
 
-      {/* Main Filter & Search Bar */}
-      <div className="bg-white rounded-2xl border border-brand-border p-4 sm:p-5 shadow-sm space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {/* Keyword Search */}
-          <div className="relative">
+      {/* Construction Category Filter Pills (Facebook style) */}
+      <div className="flex items-center gap-2.5 overflow-x-auto pb-2 scrollbar-none">
+        {CONSTRUCTION_CATEGORIES.map((cat) => {
+          const Icon = cat.icon;
+          const isSelected = selectedCategory === cat.value;
+          return (
+            <button
+              key={cat.value}
+              onClick={() => setSelectedCategory(cat.value)}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold whitespace-nowrap transition-all shadow-xs ${
+                isSelected
+                  ? 'bg-brand-blue text-white shadow-md shadow-brand-blue/20 scale-105'
+                  : 'bg-white text-brand-navy border border-brand-border hover:bg-slate-50'
+              }`}
+            >
+              <Icon className={`w-4 h-4 ${isSelected ? 'text-white' : 'text-brand-blue'}`} />
+              {cat.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Search & Location Bar */}
+      <div className="bg-white p-4 sm:p-6 rounded-3xl border border-brand-border shadow-xs space-y-4">
+        <form onSubmit={handleSearchSubmit} className="flex flex-col md:flex-row gap-3">
+          <div className="flex-1 relative">
+            <Search className="w-5 h-5 text-brand-muted absolute left-4 top-1/2 -translate-y-1/2" />
             <input
               type="text"
+              placeholder="Search by engineer name, specialization, keywords (e.g. Concrete, NBRO, Foundation)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by name, title, keywords..."
-              className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-brand-border text-xs text-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-blue"
+              className="w-full pl-11 pr-4 py-3 rounded-2xl border border-brand-border text-xs sm:text-sm text-brand-navy bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue"
             />
-            <Search className="w-4 h-4 text-brand-muted absolute left-3 top-3" />
           </div>
 
+          <button type="submit" className="btn-primary text-xs sm:text-sm font-bold px-6 py-3 shrink-0">
+            Search
+          </button>
+        </form>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
           {/* District Selector */}
           <div>
             <select
@@ -184,21 +258,6 @@ function EngineersDirectoryContent() {
             </select>
           </div>
 
-          {/* Specialization Filter */}
-          <div>
-            <select
-              value={selectedSpec}
-              onChange={(e) => setSelectedSpec(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-brand-border text-xs text-brand-navy bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue"
-            >
-              {POPULAR_SPECIALIZATIONS.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
-
           {/* Sort By */}
           <div>
             <select
@@ -206,29 +265,24 @@ function EngineersDirectoryContent() {
               onChange={(e) => setSortBy(e.target.value as any)}
               className="w-full px-3 py-2.5 rounded-xl border border-brand-border text-xs text-brand-navy bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue"
             >
-              <option value="rating">Sort: Highest Rated</option>
+              <option value="rating">Sort: Highest Rated ★</option>
               <option value="experience">Sort: Most Experienced</option>
-              <option value="fee">Sort: Lowest Consultation Fee</option>
             </select>
           </div>
-        </div>
 
-        {/* Filter Pills & Toggles */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
-          <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-semibold text-brand-navy">
-            <input
-              type="checkbox"
-              checked={verifiedOnly}
-              onChange={(e) => setVerifiedOnly(e.target.checked)}
-              className="w-4 h-4 text-brand-blue rounded border-brand-border focus:ring-brand-blue"
-            />
-            <span>Show Verified Engineers Only</span>
-            <ShieldCheck className="w-4 h-4 text-brand-blue" />
-          </label>
-
-          <span className="text-xs text-brand-muted">
-            Found {engineers.length} registered professionals
-          </span>
+          {/* Verified Toggle */}
+          <div className="flex items-center justify-end">
+            <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-semibold text-brand-navy">
+              <input
+                type="checkbox"
+                checked={verifiedOnly}
+                onChange={(e) => setVerifiedOnly(e.target.checked)}
+                className="w-4 h-4 text-brand-blue rounded border-brand-border focus:ring-brand-blue"
+              />
+              <span>Verified Engineers Only</span>
+              <ShieldCheck className="w-4 h-4 text-brand-blue" />
+            </label>
+          </div>
         </div>
       </div>
 
@@ -243,14 +297,14 @@ function EngineersDirectoryContent() {
           <div>
             <h3 className="text-base font-bold text-brand-navy">No engineers found</h3>
             <p className="text-xs text-brand-muted max-w-sm mx-auto mt-1">
-              Try adjusting your district or specialization filters to view available certified engineers.
+              Try adjusting your district or construction category filters.
             </p>
           </div>
           <button
             onClick={() => {
               setSearchQuery('');
               setSelectedDistrict('All Districts');
-              setSelectedSpec('All Specializations');
+              setSelectedCategory('All Specializations');
               setVerifiedOnly(false);
             }}
             className="btn-secondary text-xs"
@@ -261,12 +315,7 @@ function EngineersDirectoryContent() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {engineers.map((eng) => {
-            const initials = eng.displayName
-              .split(' ')
-              .map((n) => n[0])
-              .slice(0, 2)
-              .join('')
-              .toUpperCase();
+            const isConnected = connectedIds.has(eng.userId);
 
             return (
               <div
@@ -277,44 +326,41 @@ function EngineersDirectoryContent() {
                   {/* Top Profile Header */}
                   <div className="flex items-start justify-between gap-3 mb-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-brand-navy to-brand-blue text-white flex items-center justify-center font-bold text-base shadow-md">
-                        {initials}
+                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-brand-navy to-brand-blue text-white flex items-center justify-center font-bold text-lg shadow-md shrink-0">
+                        {eng.displayName?.[0] || 'E'}
                       </div>
-                      <div>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <h3 className="font-bold text-sm text-brand-navy group-hover:text-brand-blue transition-colors">
-                            {eng.displayName}
-                          </h3>
-                        </div>
-                        <p className="text-xs text-brand-muted font-medium mt-0.5 line-clamp-1">
-                          {eng.title}
-                        </p>
-                        {eng.isVerified && (
-                          <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-brand-blue">
-                            <ShieldCheck className="w-3 h-3" /> Verified Member
-                          </span>
-                        )}
+
+                      <div className="min-w-0">
+                        <Link
+                          href={`/engineers/${eng.id}`}
+                          className="text-base font-bold text-brand-navy hover:text-brand-blue transition-colors truncate block"
+                        >
+                          {eng.displayName}
+                        </Link>
+                        <p className="text-xs font-medium text-brand-blue truncate">{eng.title}</p>
                       </div>
                     </div>
+
+                    {eng.verificationStatus === VerificationStatus.VERIFIED && (
+                      <span className="badge-verified flex items-center gap-1 shrink-0 text-[10px] py-0.5">
+                        <ShieldCheck className="w-3 h-3" /> Verified
+                      </span>
+                    )}
                   </div>
 
                   {/* Rating & Experience */}
-                  <div className="grid grid-cols-2 gap-2 p-3 rounded-xl bg-slate-50 text-xs mb-4">
-                    <div className="flex items-center gap-1.5">
-                      <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
-                      <div>
-                        <span className="font-extrabold text-brand-navy">
-                          {eng.ratingAverage > 0 ? eng.ratingAverage.toFixed(1) : 'New'}
-                        </span>
-                        <span className="text-[10px] text-brand-muted ml-1">
-                          ({eng.ratingCount} reviews)
-                        </span>
-                      </div>
+                  <div className="flex items-center gap-4 text-xs mb-3">
+                    <div className="flex items-center gap-1 font-bold text-amber-600">
+                      <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                      <span>{eng.ratingAverage > 0 ? eng.ratingAverage.toFixed(1) : 'New'}</span>
+                      <span className="text-brand-muted font-normal text-[11px]">
+                        ({eng.ratingCount} reviews)
+                      </span>
                     </div>
 
                     <div className="flex items-center gap-1.5 text-brand-text">
                       <Briefcase className="w-3.5 h-3.5 text-brand-blue" />
-                      <span>{eng.yearsOfExperience} yrs experience</span>
+                      <span>{eng.yearsOfExperience} yrs exp</span>
                     </div>
                   </div>
 
@@ -322,9 +368,7 @@ function EngineersDirectoryContent() {
                   {(eng.district || eng.city) && (
                     <p className="text-xs text-brand-muted flex items-center gap-1 mb-3">
                       <MapPin className="w-3.5 h-3.5 text-brand-muted flex-shrink-0" />
-                      <span>
-                        {[eng.city, eng.district].filter(Boolean).join(', ')}
-                      </span>
+                      <span>{[eng.city, eng.district].filter(Boolean).join(', ')}</span>
                     </p>
                   )}
 
@@ -346,24 +390,42 @@ function EngineersDirectoryContent() {
                   </div>
                 </div>
 
-                {/* Footer Fee & Actions */}
-                <div className="pt-4 border-t border-brand-border flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-brand-muted block">
-                      Consultation Fee
-                    </span>
-                    <span className="text-sm font-extrabold text-brand-navy">
-                      {eng.consultationFee > 0
-                        ? `LKR ${eng.consultationFee.toLocaleString()}`
-                        : 'Free Initial Review'}
-                    </span>
-                  </div>
+                {/* Facebook-style Action Buttons (Message & Connect) */}
+                <div className="pt-4 border-t border-brand-border flex items-center gap-2">
+                  <button
+                    onClick={() => handleMessage(eng.userId)}
+                    className="flex-1 btn-primary text-xs font-bold py-2.5 gap-1.5 justify-center shadow-sm"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    Message
+                  </button>
+
+                  <button
+                    onClick={() => handleConnect(eng.userId)}
+                    disabled={isConnected || connectingId === eng.userId}
+                    className={`px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-all ${
+                      isConnected
+                        ? 'bg-emerald-50 border-emerald-200 text-emerald-700 cursor-default'
+                        : 'bg-white border-brand-border text-brand-navy hover:bg-slate-50'
+                    }`}
+                  >
+                    {isConnected ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-600" /> Connected
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="w-3.5 h-3.5 text-brand-muted" /> Add
+                      </>
+                    )}
+                  </button>
 
                   <Link
                     href={`/engineers/${eng.id}`}
-                    className="btn-accent text-xs font-bold gap-1.5 shadow-sm"
+                    className="px-3 py-2.5 rounded-xl text-xs font-bold text-brand-muted hover:text-brand-navy hover:bg-slate-100 transition-colors"
+                    title="View Profile"
                   >
-                    View & Book <ArrowRight className="w-3.5 h-3.5" />
+                    Profile
                   </Link>
                 </div>
               </div>

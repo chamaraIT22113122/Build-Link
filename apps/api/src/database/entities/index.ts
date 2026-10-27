@@ -13,5 +13,8 @@ export * from './Project';
 export * from './ProjectMilestone';
 export * from './ConsultationMessage';
 export * from './EngineerReview';
+export * from './DirectMessage';
+export * from './UserConnection';
+
 
 

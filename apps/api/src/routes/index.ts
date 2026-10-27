@@ -7,6 +7,7 @@ import { postRoutes } from './post.routes';
 import { engineerRoutes } from './engineer.routes';
 import { projectRoutes } from './project.routes';
 import { knowledgeRoutes } from './knowledge.routes';
+import { messagingRoutes } from './messaging.routes';
 import { docsRoutes } from '../docs/swagger';
 
 const router = Router();
@@ -29,6 +30,9 @@ router.use('/posts', postRoutes);
 // Professional Directory & Matching
 router.use('/engineers', engineerRoutes);
 
+// Direct Private Messaging & Messenger (Facebook-style)
+router.use('/messages', messagingRoutes);
+
 // Project Tracking & Construction Milestones
 router.use('/projects', projectRoutes);
 
@@ -39,6 +43,7 @@ router.use('/knowledge', knowledgeRoutes);
 router.use('/', docsRoutes);
 
 export const apiRouter = router;
+
 
 
 

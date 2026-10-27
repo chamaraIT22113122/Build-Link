@@ -592,6 +592,51 @@ export interface CreateEngineerReviewDto {
   consultationId?: string;
 }
 
+// Facebook-style Direct Messaging & Messenger DTOs
+export interface DirectMessageDto {
+  id: string;
+  senderId: string;
+  senderName: string;
+  senderAvatar?: string;
+  senderRole?: UserRole;
+  recipientId: string;
+  recipientName: string;
+  content: string;
+  attachments?: string[];
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface SendDirectMessageDto {
+  recipientId: string;
+  content: string;
+  attachments?: string[];
+}
+
+export interface ConversationSummaryDto {
+  otherUserId: string;
+  otherUserName: string;
+  otherUserAvatar?: string;
+  otherUserRole: UserRole;
+  otherUserTitle?: string;
+  isVerifiedEngineer?: boolean;
+  lastMessage: string;
+  lastMessageAt: string;
+  unreadCount: number;
+}
+
+export interface UserConnectionDto {
+  id: string;
+  userId: string;
+  connectedUserId: string;
+  connectedUserName: string;
+  connectedUserTitle?: string;
+  connectedUserAvatar?: string;
+  isVerifiedEngineer?: boolean;
+  createdAt: string;
+}
+
+
 
 
 

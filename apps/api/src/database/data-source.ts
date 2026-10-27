@@ -16,6 +16,8 @@ import {
   ProjectMilestone,
   ConsultationMessage,
   EngineerReview,
+  DirectMessage,
+  UserConnection,
 } from './entities';
 
 export const AppDataSource = new DataSource({
@@ -42,6 +44,8 @@ export const AppDataSource = new DataSource({
     ProjectMilestone,
     ConsultationMessage,
     EngineerReview,
+    DirectMessage,
+    UserConnection,
   ],
   migrations: [__dirname + '/migrations/*.{ts,js}'],
   options: {
