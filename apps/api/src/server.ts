@@ -1,12 +1,21 @@
 import { createApp } from './app';
 import { env } from './config';
 import { initializeDatabase } from './database/data-source';
+import { seedDatabase } from './database/seed';
 
 async function bootstrap() {
   const app = createApp();
 
   // Attempt database connection asynchronously
   await initializeDatabase();
+
+  // Seed sample demonstration accounts and test fixtures
+  try {
+    await seedDatabase();
+  } catch (err) {
+    console.warn('[Seed] Warning during seed initialization:', err);
+  }
+
 
   const server = app.listen(env.PORT, () => {
     console.log(`=======================================================`);
