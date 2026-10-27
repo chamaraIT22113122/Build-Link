@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, Suspense, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -8,11 +8,14 @@ import {
   CommentDto,
   PostType,
   UserRole,
+  ReactionType,
+  StoryDto,
+  ConstructionGroupDto,
   CONSTRUCTION_CATEGORIES,
+  SRI_LANKAN_DISTRICTS,
 } from '@buildlink/shared';
 import {
   MessageSquare,
-  Heart,
   Share2,
   HardHat,
   ShieldCheck,
@@ -31,8 +34,33 @@ import {
   ThumbsUp,
   Award,
   RotateCcw,
+  MapPin,
+  Users,
+  Compass,
+  Bookmark,
+  TrendingUp,
+  MoreHorizontal,
+  ChevronRight,
+  Eye,
+  Smile,
+  ImageIcon,
+  FolderKanban,
+  BookOpen,
+  MessageCircle,
 } from 'lucide-react';
 import Link from 'next/link';
+
+// Facebook-style Multi-Reaction emojis and metadata
+const REACTION_CONFIG: Record<
+  ReactionType,
+  { label: string; emoji: string; color: string; bg: string }
+> = {
+  [ReactionType.LIKE]: { label: 'Like', emoji: '👍', color: 'text-blue-500', bg: 'bg-blue-500/10' },
+  [ReactionType.LOVE]: { label: 'Love', emoji: '❤️', color: 'text-red-500', bg: 'bg-red-500/10' },
+  [ReactionType.INSIGHT]: { label: 'Insight', emoji: '💡', color: 'text-amber-500', bg: 'bg-amber-500/10' },
+  [ReactionType.SOLID]: { label: 'Solid', emoji: '🏗️', color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+  [ReactionType.CAUTION]: { label: 'Caution', emoji: '⚠️', color: 'text-orange-500', bg: 'bg-orange-500/10' },
+};
 
 function FeedContent() {
   const router = useRouter();
@@ -45,12 +73,66 @@ function FeedContent() {
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
+  // Stories (Facebook Site Snaps)
+  const [stories, setStories] = useState<StoryDto[]>([]);
+  const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
+  const [showStoryUploadModal, setShowStoryUploadModal] = useState(false);
+  const [storyMediaUrl, setStoryMediaUrl] = useState('');
+  const [storyCaption, setStoryCaption] = useState('');
+  const [storyLocation, setStoryLocation] = useState('Colombo');
+  const [isUploadingStory, setIsUploadingStory] = useState(false);
+
+  // Groups list for sidebar & selector
+  const [groups, setGroups] = useState<ConstructionGroupDto[]>([]);
+
+  // Online Contacts for Right Sidebar
+  const [onlineContacts] = useState([
+    {
+      id: 'eng-kasun',
+      name: 'Eng. Kasun Perera',
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+      title: 'Structural Engineer (IESL)',
+      role: UserRole.ENGINEER,
+      isVerified: true,
+      district: 'Kandy',
+    },
+    {
+      id: 'arch-nimali',
+      name: 'Arch. Nimali Silva',
+      avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=150&q=80',
+      title: 'Chartered Architect',
+      role: UserRole.ENGINEER,
+      isVerified: true,
+      district: 'Galle',
+    },
+    {
+      id: 'eng-ruwan',
+      name: 'Eng. Ruwan Jayawardena',
+      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80',
+      title: 'Geotechnical & NBRO Specialist',
+      role: UserRole.ENGINEER,
+      isVerified: true,
+      district: 'Nuwara Eliya',
+    },
+    {
+      id: 'eng-dhanushka',
+      name: 'Eng. Dhanushka Bandara',
+      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
+      title: 'Civil & Foundation Consultant',
+      role: UserRole.ENGINEER,
+      isVerified: true,
+      district: 'Colombo',
+    },
+  ]);
+
   // New Post Form State
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [postTitle, setPostTitle] = useState('');
   const [postContent, setPostContent] = useState('');
   const [postCategory, setPostCategory] = useState<string>(CONSTRUCTION_CATEGORIES[0]);
   const [postType, setPostType] = useState<PostType>(PostType.GENERAL);
+  const [postLocationTag, setPostLocationTag] = useState<string>('Colombo');
+  const [selectedGroupId, setSelectedGroupId] = useState<string>('');
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [isSubmittingPost, setIsSubmittingPost] = useState(false);
@@ -59,6 +141,10 @@ function FeedContent() {
   const [expandedComments, setExpandedComments] = useState<Record<string, CommentDto[]>>({});
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [loadingComments, setLoadingComments] = useState<Record<string, boolean>>({});
+
+  // Active hover reaction dock popover: postId
+  const [hoveredReactionPostId, setHoveredReactionPostId] = useState<string | null>(null);
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050/api/v1';
 
@@ -95,9 +181,48 @@ function FeedContent() {
     }
   };
 
+  // Load Stories & Groups
+  useEffect(() => {
+    const fetchStoriesAndGroups = async () => {
+      try {
+        const [storiesRes, groupsRes] = await Promise.all([
+          fetch(`${apiUrl}/posts/stories`, { headers: token ? { Authorization: `Bearer ${token}` } : {} }),
+          fetch(`${apiUrl}/posts/groups`, { headers: token ? { Authorization: `Bearer ${token}` } : {} }),
+        ]);
+        const storiesData = await storiesRes.json();
+        const groupsData = await groupsRes.json();
+        if (storiesData.success && Array.isArray(storiesData.data)) {
+          setStories(storiesData.data);
+        }
+        if (groupsData.success && Array.isArray(groupsData.data)) {
+          setGroups(groupsData.data);
+        }
+      } catch {
+        // Handled silently
+      }
+    };
+
+    fetchStoriesAndGroups();
+  }, [token]);
+
   useEffect(() => {
     loadPosts();
   }, [selectedType, selectedCategory, searchQuery, token]);
+
+  // Trigger Chat from Sidebar
+  const handleOpenContactChat = (contact: (typeof onlineContacts)[0]) => {
+    const event = new CustomEvent('buildlink:open-chat', {
+      detail: {
+        partnerId: contact.id,
+        partnerName: contact.name,
+        partnerAvatar: contact.avatar,
+        partnerRole: contact.role,
+        isVerifiedEngineer: contact.isVerified,
+        partnerTitle: contact.title,
+      },
+    });
+    window.dispatchEvent(event);
+  };
 
   // Handle Image Upload for New Post
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -142,6 +267,8 @@ function FeedContent() {
     setIsSubmittingPost(true);
 
     try {
+      const selectedGroup = groups.find((g) => g.id === selectedGroupId);
+
       const res = await fetch(`${apiUrl}/posts`, {
         method: 'POST',
         headers: {
@@ -149,45 +276,115 @@ function FeedContent() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          title: postTitle,
-          content: postContent,
+          title: postTitle.trim(),
+          content: postContent.trim(),
           category: postCategory,
           postType,
           mediaUrls,
+          locationTag: postLocationTag,
+          groupId: selectedGroupId || undefined,
+          groupName: selectedGroup?.name || undefined,
         }),
       });
 
       const data = await res.json();
-      if (data.success) {
+      if (data.success && data.data) {
+        setPosts((prev) => [data.data, ...prev]);
+        setShowCreateModal(false);
         setPostTitle('');
         setPostContent('');
         setMediaUrls([]);
-        setShowCreateModal(false);
-        loadPosts();
+        setSelectedGroupId('');
       } else {
-        alert(data?.error?.message || 'Failed to publish post.');
+        alert(data.error?.message || 'Failed to create post.');
       }
     } catch {
-      alert('Error publishing post.');
+      alert('Network error while publishing post.');
     } finally {
       setIsSubmittingPost(false);
     }
   };
 
-  // Toggle Like
-  const handleToggleLike = async (postId: string) => {
+  // Submit Story
+  const handleCreateStory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token) {
+      router.push('/login?redirect=/feed');
+      return;
+    }
+    if (!storyMediaUrl.trim()) {
+      alert('Please enter or select a photo URL for your site snap.');
+      return;
+    }
+
+    setIsUploadingStory(true);
+    try {
+      const res = await fetch(`${apiUrl}/posts/stories`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          mediaUrl: storyMediaUrl.trim(),
+          caption: storyCaption.trim() || undefined,
+          locationTag: storyLocation,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.data) {
+        setStories((prev) => [data.data, ...prev]);
+        setShowStoryUploadModal(false);
+        setStoryMediaUrl('');
+        setStoryCaption('');
+      }
+    } catch {
+      alert('Failed to post story.');
+    } finally {
+      setIsUploadingStory(false);
+    }
+  };
+
+  // Facebook Reaction Handler
+  const handleReactToPost = async (postId: string, reactionType: ReactionType) => {
     if (!token) {
       router.push('/login?redirect=/feed');
       return;
     }
 
+    // Optimistic UI update
+    setPosts((prev) =>
+      prev.map((p) => {
+        if (p.id === postId) {
+          const wasActive = p.userReaction === reactionType;
+          const nextReaction = wasActive ? null : reactionType;
+          const currentCount = p.likesCount;
+          const nextCount = wasActive ? Math.max(0, currentCount - 1) : p.userReaction ? currentCount : currentCount + 1;
+
+          return {
+            ...p,
+            isLikedByMe: !wasActive,
+            userReaction: nextReaction,
+            likesCount: nextCount,
+          };
+        }
+        return p;
+      })
+    );
+
+    setHoveredReactionPostId(null);
+
     try {
       const res = await fetch(`${apiUrl}/posts/${postId}/like`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ reaction: reactionType }),
       });
       const data = await res.json();
-      if (data.success) {
+      if (data.success && data.data) {
         setPosts((prev) =>
           prev.map((p) =>
             p.id === postId
@@ -195,23 +392,26 @@ function FeedContent() {
                   ...p,
                   isLikedByMe: data.data.isLiked,
                   likesCount: data.data.likesCount,
+                  userReaction: data.data.userReaction,
+                  reactionBreakdown: data.data.reactionBreakdown,
                 }
               : p
           )
         );
       }
     } catch {
-      // Handled silently
+      loadPosts();
     }
   };
 
-  // Expand / Fetch Comments
-  const handleToggleComments = async (postId: string) => {
+  // Toggle Comments Drawer
+  const toggleComments = async (postId: string) => {
     if (expandedComments[postId]) {
-      // Collapse
-      const copy = { ...expandedComments };
-      delete copy[postId];
-      setExpandedComments(copy);
+      setExpandedComments((prev) => {
+        const next = { ...prev };
+        delete next[postId];
+        return next;
+      });
       return;
     }
 
@@ -219,8 +419,8 @@ function FeedContent() {
     try {
       const res = await fetch(`${apiUrl}/posts/${postId}/comments`);
       const data = await res.json();
-      if (data.success) {
-        setExpandedComments((prev) => ({ ...prev, [postId]: data.data || [] }));
+      if (data.success && Array.isArray(data.data)) {
+        setExpandedComments((prev) => ({ ...prev, [postId]: data.data }));
       }
     } catch {
       // Handled silently
@@ -232,11 +432,7 @@ function FeedContent() {
   // Add Comment
   const handleAddComment = async (postId: string) => {
     const text = commentInputs[postId]?.trim();
-    if (!text) return;
-    if (!token) {
-      router.push('/login?redirect=/feed');
-      return;
-    }
+    if (!text || !token) return;
 
     try {
       const res = await fetch(`${apiUrl}/posts/${postId}/comments`, {
@@ -248,16 +444,14 @@ function FeedContent() {
         body: JSON.stringify({ content: text }),
       });
       const data = await res.json();
-      if (data.success) {
+      if (data.success && data.data) {
         setExpandedComments((prev) => ({
           ...prev,
           [postId]: [...(prev[postId] || []), data.data],
         }));
         setCommentInputs((prev) => ({ ...prev, [postId]: '' }));
         setPosts((prev) =>
-          prev.map((p) =>
-            p.id === postId ? { ...p, commentsCount: p.commentsCount + 1 } : p
-          )
+          prev.map((p) => (p.id === postId ? { ...p, commentsCount: p.commentsCount + 1 } : p))
         );
       }
     } catch {
@@ -265,512 +459,663 @@ function FeedContent() {
     }
   };
 
-  // Toggle Helpful Vote on Comment
-  const handleToggleHelpful = async (commentId: string, postId: string) => {
-    if (!token) {
-      router.push('/login?redirect=/feed');
-      return;
-    }
-
-    try {
-      const res = await fetch(`${apiUrl}/posts/comments/${commentId}/helpful`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (data.success && data.data) {
-        setExpandedComments((prev) => ({
-          ...prev,
-          [postId]: (prev[postId] || []).map((c) =>
-            c.id === commentId ? { ...c, helpfulCount: data.data.helpfulCount } : c
-          ),
-        }));
-      }
-    } catch {
-      // Handled silently
-    }
-  };
-
-  // Mark Comment as Accepted Solution
-  const handleResolveQuestion = async (postId: string, commentId: string) => {
-    if (!token) {
-      router.push('/login?redirect=/feed');
-      return;
-    }
-
-    try {
-      const res = await fetch(`${apiUrl}/posts/${postId}/resolve`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ answerId: commentId }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setPosts((prev) =>
-          prev.map((p) =>
-            p.id === postId
-              ? { ...p, isResolved: true, acceptedAnswerId: commentId }
-              : p
-          )
-        );
-        setExpandedComments((prev) => ({
-          ...prev,
-          [postId]: (prev[postId] || []).map((c) => ({
-            ...c,
-            isAcceptedSolution: c.id === commentId,
-          })),
-        }));
-      } else {
-        alert(data?.error?.message || 'Failed to accept solution.');
-      }
-    } catch {
-      alert('Error accepting solution.');
-    }
-  };
-
-  // Unmark Accepted Solution
-  const handleUnresolveQuestion = async (postId: string) => {
-    if (!token) {
-      router.push('/login?redirect=/feed');
-      return;
-    }
-
-    try {
-      const res = await fetch(`${apiUrl}/posts/${postId}/unresolve`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (data.success) {
-        setPosts((prev) =>
-          prev.map((p) =>
-            p.id === postId
-              ? { ...p, isResolved: false, acceptedAnswerId: undefined }
-              : p
-          )
-        );
-        setExpandedComments((prev) => ({
-          ...prev,
-          [postId]: (prev[postId] || []).map((c) => ({
-            ...c,
-            isAcceptedSolution: false,
-          })),
-        }));
-      }
-    } catch {
-      alert('Error updating question resolution.');
-    }
-  };
-
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Top Banner / Feed Header */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8 bg-gradient-to-r from-brand-navy via-[#16355e] to-brand-blue p-6 rounded-3xl text-white shadow-lg">
-        <div>
-          <span className="text-brand-orange text-xs font-bold uppercase tracking-wider">
-            Community Hub
-          </span>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight mt-0.5">
-            Construction & Engineering Feed
-          </h1>
-          <p className="text-blue-100 text-xs sm:text-sm mt-1 max-w-xl">
-            Ask construction questions, share site progress, and receive verified answers from registered Sri Lankan engineers.
-          </p>
-        </div>
-
-        <button
-          onClick={() => {
-            if (!token) router.push('/login?redirect=/feed');
-            else setShowCreateModal(true);
-          }}
-          className="btn-accent text-sm font-bold gap-2 whitespace-nowrap shadow-md"
-        >
-          <PlusCircle className="w-4 h-4" />
-          Create Community Post
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        {/* Left Sidebar: Filters */}
-        <div className="lg:col-span-1 space-y-6">
-          {/* Search Box */}
-          <div className="bg-white p-4 rounded-2xl border border-brand-border shadow-sm">
-            <label className="block text-xs font-bold text-brand-navy uppercase mb-2">
-              Search Discussions
-            </label>
+    <div className="min-h-screen bg-brand-bg py-6 px-3 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        {/* ========================================================
+            LEFT SIDEBAR (Facebook Navigation & Shortcuts)
+           ======================================================== */}
+        <aside className="hidden lg:block lg:col-span-3 space-y-4 sticky top-20 self-start">
+          {/* User Profile Snippet */}
+          <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 shadow-sm flex items-center space-x-3">
             <div className="relative">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Keywords, cracks, tiles..."
-                className="w-full pl-9 pr-3 py-2 rounded-xl border border-brand-border text-xs text-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-blue"
-              />
-              <Search className="w-4 h-4 text-brand-muted absolute left-3 top-2.5" />
+              <div className="w-11 h-11 rounded-full bg-brand-primary/20 text-brand-primary flex items-center justify-center font-bold text-sm">
+                {user?.profile?.avatarUrl ? (
+                  <img
+                    src={user.profile.avatarUrl}
+                    alt={user.profile.displayName || 'User'}
+                    className="w-11 h-11 rounded-full object-cover"
+                  />
+                ) : (
+                  (user?.profile?.displayName || 'User').substring(0, 2).toUpperCase()
+                )}
+              </div>
+              <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 ring-2 ring-brand-surface" />
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <Link
+                href="/profile"
+                className="text-sm font-bold text-brand-text hover:text-brand-primary transition-colors truncate block"
+              >
+                {user ? user.profile?.displayName || 'My Profile' : 'Guest Member'}
+              </Link>
+              <div className="flex items-center space-x-1.5 text-xs text-brand-muted">
+                {user?.role === UserRole.ENGINEER ? (
+                  <span className="text-emerald-500 flex items-center space-x-1 font-medium">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>Verified Pro</span>
+                  </span>
+                ) : (
+                  <span>Home Builder</span>
+                )}
+                {user?.profile?.district && (
+                  <>
+                    <span>•</span>
+                    <span className="truncate">{user.profile.district}</span>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Post Type Filter */}
-          <div className="bg-white p-4 rounded-2xl border border-brand-border shadow-sm space-y-1.5">
-            <label className="block text-xs font-bold text-brand-navy uppercase mb-2 flex items-center gap-1.5">
-              <Filter className="w-3.5 h-3.5 text-brand-blue" /> Post Type
-            </label>
-            {[
-              { id: 'ALL', label: 'All Discussions' },
-              { id: PostType.QUESTION, label: 'Questions & Answers' },
-              { id: PostType.TIP, label: 'Practical Tips' },
-              { id: PostType.PROJECT_UPDATE, label: 'Project Updates' },
-              { id: PostType.GENERAL, label: 'General Discussions' },
-            ].map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setSelectedType(t.id)}
-                className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
-                  selectedType === t.id
-                    ? 'bg-brand-blue text-white font-bold'
-                    : 'text-brand-text hover:bg-slate-50'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
+          {/* Facebook Shortcuts Menu */}
+          <div className="bg-brand-surface border border-brand-border rounded-2xl p-2.5 shadow-sm space-y-1 text-xs">
+            <Link
+              href="/feed"
+              className="flex items-center space-x-3 px-3 py-2.5 rounded-xl bg-brand-primary/10 text-brand-primary font-semibold transition-colors"
+            >
+              <Building className="w-4 h-4" />
+              <span>News Feed</span>
+            </Link>
+
+            <Link
+              href="/groups"
+              className="flex items-center space-x-3 px-3 py-2.5 rounded-xl text-brand-text hover:bg-brand-card transition-colors font-medium"
+            >
+              <Users className="w-4 h-4 text-emerald-500" />
+              <div className="flex-1 flex items-center justify-between">
+                <span>Construction Groups</span>
+                <span className="text-[10px] bg-emerald-500/10 text-emerald-600 px-1.5 py-0.5 rounded font-bold">
+                  {groups.length}
+                </span>
+              </div>
+            </Link>
+
+            <Link
+              href="/engineers"
+              className="flex items-center space-x-3 px-3 py-2.5 rounded-xl text-brand-text hover:bg-brand-card transition-colors font-medium"
+            >
+              <HardHat className="w-4 h-4 text-amber-500" />
+              <span>Verified Engineers</span>
+            </Link>
+
+            <Link
+              href="/projects"
+              className="flex items-center space-x-3 px-3 py-2.5 rounded-xl text-brand-text hover:bg-brand-card transition-colors font-medium"
+            >
+              <FolderKanban className="w-4 h-4 text-indigo-500" />
+              <span>Project Workspaces</span>
+            </Link>
+
+            <Link
+              href="/questions"
+              className="flex items-center space-x-3 px-3 py-2.5 rounded-xl text-brand-text hover:bg-brand-card transition-colors font-medium"
+            >
+              <HelpCircle className="w-4 h-4 text-rose-500" />
+              <span>Questions Hub</span>
+            </Link>
+
+            <Link
+              href="/knowledge"
+              className="flex items-center space-x-3 px-3 py-2.5 rounded-xl text-brand-text hover:bg-brand-card transition-colors font-medium"
+            >
+              <BookOpen className="w-4 h-4 text-cyan-500" />
+              <span>Building Codes & SLS</span>
+            </Link>
+
+            <Link
+              href="/messages"
+              className="flex items-center space-x-3 px-3 py-2.5 rounded-xl text-brand-text hover:bg-brand-card transition-colors font-medium"
+            >
+              <MessageCircle className="w-4 h-4 text-purple-500" />
+              <span>Full Messenger</span>
+            </Link>
           </div>
 
-          {/* Construction Categories */}
-          <div className="bg-white p-4 rounded-2xl border border-brand-border shadow-sm">
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-bold text-brand-navy uppercase">
-                Categories
-              </label>
-              {selectedCategory !== 'ALL' && (
-                <button
-                  onClick={() => setSelectedCategory('ALL')}
-                  className="text-[11px] text-brand-blue hover:underline"
-                >
-                  Reset
-                </button>
-              )}
+          {/* Quick Communities Widget */}
+          <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 shadow-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold text-brand-text uppercase tracking-wider">
+                Popular Groups
+              </h4>
+              <Link href="/groups" className="text-[11px] text-brand-primary font-semibold hover:underline">
+                See all
+              </Link>
             </div>
-            <div className="space-y-1 max-h-72 overflow-y-auto pr-1">
-              <button
-                onClick={() => setSelectedCategory('ALL')}
-                className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
-                  selectedCategory === 'ALL'
-                    ? 'text-brand-blue font-bold bg-blue-50'
-                    : 'text-brand-text hover:bg-slate-50'
-                }`}
-              >
-                All Categories
-              </button>
-              {CONSTRUCTION_CATEGORIES.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-colors truncate ${
-                    selectedCategory === cat
-                      ? 'text-brand-blue font-bold bg-blue-50'
-                      : 'text-brand-muted hover:text-brand-navy hover:bg-slate-50'
-                  }`}
+            <div className="space-y-2">
+              {groups.slice(0, 3).map((g) => (
+                <Link
+                  key={g.id}
+                  href={`/feed?category=${encodeURIComponent(g.category)}`}
+                  className="flex items-center space-x-2.5 p-1.5 rounded-lg hover:bg-brand-card text-xs text-brand-text transition-colors group"
                 >
-                  {cat}
-                </button>
+                  <span className="text-base p-1.5 rounded-lg bg-brand-bg border border-brand-border group-hover:scale-105 transition-transform">
+                    {g.icon || '🏗️'}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold truncate group-hover:text-brand-primary transition-colors">
+                      {g.name}
+                    </p>
+                    <p className="text-[10px] text-brand-muted truncate">
+                      {g.membersCount.toLocaleString()} members
+                    </p>
+                  </div>
+                </Link>
               ))}
             </div>
           </div>
-        </div>
+        </aside>
 
-        {/* Right Area: Feed Stream */}
-        <div className="lg:col-span-3 space-y-6">
-          {loading ? (
-            <div className="min-h-[40vh] flex items-center justify-center">
-              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-blue"></div>
+        {/* ========================================================
+            CENTER FEED (Stories, Composer & Rich Post Cards)
+           ======================================================== */}
+        <main className="col-span-1 lg:col-span-6 space-y-5">
+          
+          {/* --- 1. STORIES BAR (Facebook Site Snaps) --- */}
+          <div className="bg-brand-surface border border-brand-border rounded-2xl p-3.5 shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between mb-2.5 px-1">
+              <span className="text-xs font-bold text-brand-text flex items-center space-x-1.5">
+                <span>📸</span>
+                <span>Site Stories & Daily Snaps</span>
+              </span>
+              <span className="text-[11px] text-brand-muted">24h site updates</span>
             </div>
-          ) : posts.length === 0 ? (
-            <div className="bg-white p-12 rounded-3xl border border-brand-border text-center text-brand-muted space-y-3">
-              <MessageSquare className="w-12 h-12 text-slate-300 mx-auto" />
-              <h3 className="text-base font-bold text-brand-navy">No community posts yet</h3>
-              <p className="text-xs max-w-md mx-auto">
-                Be the first to ask a question or share a construction tip with the BuildLink community!
-              </p>
+
+            <div className="flex items-center space-x-3 overflow-x-auto pb-1 scrollbar-none">
+              {/* Add Story Card */}
+              <button
+                onClick={() => {
+                  if (!token) router.push('/login?redirect=/feed');
+                  else setShowStoryUploadModal(true);
+                }}
+                className="w-24 h-36 rounded-xl border-2 border-dashed border-brand-primary/40 bg-brand-card hover:bg-brand-primary/5 flex flex-col items-center justify-center p-2 flex-shrink-0 transition-all group"
+              >
+                <div className="w-9 h-9 rounded-full bg-brand-primary text-white flex items-center justify-center mb-2 shadow group-hover:scale-110 transition-transform">
+                  <PlusCircle className="w-5 h-5" />
+                </div>
+                <span className="text-[11px] font-bold text-brand-text text-center leading-tight">
+                  Add Site Story
+                </span>
+                <span className="text-[9px] text-brand-muted mt-0.5">Photo / Reel</span>
+              </button>
+
+              {/* Story Items */}
+              {stories.map((story, idx) => (
+                <div
+                  key={story.id}
+                  onClick={() => setActiveStoryIndex(idx)}
+                  className="w-24 h-36 rounded-xl relative overflow-hidden flex-shrink-0 cursor-pointer shadow group select-none ring-2 ring-brand-primary/40 hover:ring-brand-primary transition-all"
+                >
+                  <img
+                    src={story.mediaUrl}
+                    alt={story.caption || 'Site story'}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                  
+                  {/* Top Avatar badge */}
+                  <div className="absolute top-2 left-2">
+                    <div className="w-7 h-7 rounded-full ring-2 ring-brand-primary overflow-hidden bg-brand-surface shadow">
+                      {story.authorAvatar ? (
+                        <img src={story.authorAvatar} alt={story.authorName} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-brand-primary text-white text-[10px] font-bold flex items-center justify-center">
+                          {story.authorName.substring(0, 1)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Bottom Text */}
+                  <div className="absolute bottom-1.5 left-1.5 right-1.5 text-white">
+                    <p className="text-[10px] font-bold truncate leading-tight">{story.authorName}</p>
+                    {story.locationTag && (
+                      <p className="text-[8px] text-white/80 truncate flex items-center space-x-0.5">
+                        <MapPin className="w-2.5 h-2.5 text-emerald-400 inline" />
+                        <span>{story.locationTag}</span>
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* --- 2. FACEBOOK COMPOSER BAR --- */}
+          <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 shadow-sm space-y-3">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-full bg-brand-primary/20 text-brand-primary flex items-center justify-center font-bold text-xs flex-shrink-0">
+                {user?.profile?.avatarUrl ? (
+                  <img
+                    src={user.profile.avatarUrl}
+                    alt={user.profile.displayName || 'User'}
+                    className="w-10 h-10 rounded-full object-cover"
+                  />
+                ) : (
+                  (user?.profile?.displayName || 'User').substring(0, 2).toUpperCase()
+                )}
+              </div>
+
               <button
                 onClick={() => {
                   if (!token) router.push('/login?redirect=/feed');
                   else setShowCreateModal(true);
                 }}
-                className="btn-primary text-xs mt-2"
+                className="flex-1 bg-brand-bg hover:bg-brand-card text-left px-4 py-2.5 rounded-full text-xs text-brand-muted border border-brand-border transition-colors flex items-center justify-between"
               >
-                Start a Discussion
+                <span>
+                  {user ? `What are you building today, ${user.profile?.firstName || 'friend'}?` : "What's on your mind? Share site progress..."}
+                </span>
+                <Smile className="w-4 h-4 text-brand-muted/70" />
               </button>
+            </div>
+
+            <div className="pt-2 border-t border-brand-border/60 grid grid-cols-4 gap-1 text-center">
+              <button
+                onClick={() => {
+                  if (!token) router.push('/login?redirect=/feed');
+                  else {
+                    setPostType(PostType.GENERAL);
+                    setShowCreateModal(true);
+                  }
+                }}
+                className="flex items-center justify-center space-x-1.5 py-1.5 rounded-xl hover:bg-brand-card text-xs font-semibold text-brand-text transition-colors"
+              >
+                <ImageIcon className="w-4 h-4 text-emerald-500" />
+                <span className="hidden sm:inline">Photo/Video</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  if (!token) router.push('/login?redirect=/feed');
+                  else {
+                    setPostType(PostType.QUESTION);
+                    setShowCreateModal(true);
+                  }
+                }}
+                className="flex items-center justify-center space-x-1.5 py-1.5 rounded-xl hover:bg-brand-card text-xs font-semibold text-brand-text transition-colors"
+              >
+                <HelpCircle className="w-4 h-4 text-rose-500" />
+                <span className="hidden sm:inline">Ask Question</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  if (!token) router.push('/login?redirect=/feed');
+                  else {
+                    setPostType(PostType.PROJECT_UPDATE);
+                    setShowCreateModal(true);
+                  }
+                }}
+                className="flex items-center justify-center space-x-1.5 py-1.5 rounded-xl hover:bg-brand-card text-xs font-semibold text-brand-text transition-colors"
+              >
+                <MapPin className="w-4 h-4 text-amber-500" />
+                <span className="hidden sm:inline">Check In Site</span>
+              </button>
+
+              <Link
+                href="/groups"
+                className="flex items-center justify-center space-x-1.5 py-1.5 rounded-xl hover:bg-brand-card text-xs font-semibold text-brand-text transition-colors"
+              >
+                <Users className="w-4 h-4 text-blue-500" />
+                <span className="hidden sm:inline">Tag Group</span>
+              </Link>
+            </div>
+          </div>
+
+          {/* --- Filter Pills --- */}
+          <div className="flex items-center space-x-2 overflow-x-auto pb-1 scrollbar-none">
+            {['ALL', 'GENERAL', 'QUESTION', 'PROJECT_UPDATE', 'PROFESSIONAL_ADVICE'].map((type) => (
+              <button
+                key={type}
+                onClick={() => setSelectedType(type)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
+                  selectedType === type
+                    ? 'bg-brand-text text-brand-bg'
+                    : 'bg-brand-surface text-brand-muted hover:text-brand-text border border-brand-border'
+                }`}
+              >
+                {type === 'ALL'
+                  ? 'All Posts'
+                  : type === 'PROJECT_UPDATE'
+                  ? '🏗️ Site Milestones'
+                  : type === 'QUESTION'
+                  ? '❓ Questions'
+                  : type === 'PROFESSIONAL_ADVICE'
+                  ? '💡 Pro Advice'
+                  : 'General'}
+              </button>
+            ))}
+          </div>
+
+          {/* --- 3. POSTS FEED --- */}
+          {loading ? (
+            <div className="space-y-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-brand-surface border border-brand-border rounded-2xl h-64 animate-pulse" />
+              ))}
+            </div>
+          ) : posts.length === 0 ? (
+            <div className="bg-brand-surface border border-brand-border rounded-2xl p-12 text-center space-y-3">
+              <Building className="w-12 h-12 text-brand-muted mx-auto" />
+              <h3 className="font-bold text-base text-brand-text">No posts yet</h3>
+              <p className="text-xs text-brand-muted">Be the first to share your construction project or ask a question!</p>
             </div>
           ) : (
             posts.map((post) => {
-              const authorInitials = post.author?.displayName
-                ?.split(' ')
-                .map((n) => n[0])
-                .slice(0, 2)
-                .join('')
-                .toUpperCase() || 'BL';
-
-              const isCommentsOpen = Boolean(expandedComments[post.id]);
-              const commentsList = expandedComments[post.id] || [];
-              const isLoadingPostComments = loadingComments[post.id];
+              const activeReaction = post.userReaction;
+              const reactionInfo = activeReaction ? REACTION_CONFIG[activeReaction] : null;
 
               return (
                 <article
                   key={post.id}
-                  className="bg-white rounded-2xl border border-brand-border shadow-sm overflow-hidden hover:shadow-md transition-shadow"
+                  className="bg-brand-surface border border-brand-border rounded-2xl shadow-sm hover:shadow-md transition-shadow overflow-hidden space-y-3.5"
                 >
                   {/* Post Header */}
-                  <div className="p-5 sm:p-6 pb-3">
-                    <div className="flex items-center justify-between gap-3 mb-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-brand-navy text-white flex items-center justify-center font-bold text-xs shadow-sm">
-                          {authorInitials}
+                  <div className="p-4 pb-0 flex items-start justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="relative">
+                        <div className="w-10 h-10 rounded-full bg-brand-primary/20 text-brand-primary flex items-center justify-center font-bold text-xs">
+                          {post.author.avatarUrl ? (
+                            <img
+                              src={post.author.avatarUrl}
+                              alt={post.author.displayName}
+                              className="w-10 h-10 rounded-full object-cover"
+                            />
+                          ) : (
+                            post.author.displayName.substring(0, 2).toUpperCase()
+                          )}
                         </div>
-                        <div>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-sm font-bold text-brand-navy">
-                              {post.author.displayName}
-                            </span>
-                            {post.author.isVerifiedEngineer && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-brand-blue">
-                                <ShieldCheck className="w-3 h-3 text-brand-blue" />
-                                Verified Engineer
-                              </span>
-                            )}
-                            {post.author.role === UserRole.ENGINEER && !post.author.isVerifiedEngineer && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700">
-                                <HardHat className="w-3 h-3" />
-                                Engineer
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-[11px] text-brand-muted flex items-center gap-1 mt-0.5">
-                            <Calendar className="w-3 h-3" />
-                            {new Date(post.createdAt).toLocaleDateString()}
-                          </p>
-                        </div>
+                        <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-brand-surface" />
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-brand-text">
-                          {post.category}
-                        </span>
-                        {post.postType === PostType.QUESTION && (
-                          <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 text-amber-800 flex items-center gap-1">
-                            <HelpCircle className="w-3 h-3" /> Question
+                      <div>
+                        <div className="flex items-center space-x-1.5 flex-wrap">
+                          <span className="text-xs font-bold text-brand-text hover:underline cursor-pointer">
+                            {post.author.displayName}
                           </span>
-                        )}
-                        {post.postType === PostType.TIP && (
-                          <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-100 text-emerald-800 flex items-center gap-1">
-                            <Lightbulb className="w-3 h-3" /> Tip
+                          {post.author.isVerifiedEngineer && (
+                            <span className="inline-flex items-center space-x-0.5 text-emerald-500 text-[11px] font-semibold">
+                              <ShieldCheck className="w-3.5 h-3.5" />
+                              <span>Verified</span>
+                            </span>
+                          )}
+                          {post.groupName && (
+                            <span className="text-brand-muted text-xs flex items-center space-x-1">
+                              <span>▶ in</span>
+                              <Link
+                                href={`/feed?category=${encodeURIComponent(post.category)}`}
+                                className="font-semibold text-brand-primary hover:underline truncate max-w-[150px]"
+                              >
+                                {post.groupName}
+                              </Link>
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center space-x-1.5 text-[11px] text-brand-muted">
+                          <span>{new Date(post.createdAt).toLocaleDateString()}</span>
+                          <span>•</span>
+                          {post.locationTag ? (
+                            <span className="flex items-center space-x-0.5 text-brand-text font-medium">
+                              <MapPin className="w-3 h-3 text-emerald-500" />
+                              <span>{post.locationTag}</span>
+                            </span>
+                          ) : (
+                            <span>🌐 Public</span>
+                          )}
+                          <span>•</span>
+                          <span className="px-1.5 py-0.2 rounded bg-brand-card text-[10px] font-medium border border-brand-border/40">
+                            {post.category}
                           </span>
-                        )}
+                        </div>
                       </div>
                     </div>
 
-                    {/* Post Title & Content */}
-                    <h2 className="text-base sm:text-lg font-bold text-brand-navy mb-2 leading-snug">
-                      {post.title}
-                    </h2>
-                    <p className="text-xs sm:text-sm text-brand-text leading-relaxed whitespace-pre-line">
-                      {post.content}
-                    </p>
-
-                    {/* Media Gallery Grid */}
-                    {post.mediaUrls && post.mediaUrls.length > 0 && (
-                      <div className="mt-4 grid grid-cols-2 gap-2">
-                        {post.mediaUrls.map((url, idx) => (
-                          <a
-                            key={idx}
-                            href={url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="block rounded-xl overflow-hidden border border-brand-border bg-slate-50 aspect-video relative group"
-                          >
-                            <img
-                              src={url}
-                              alt="Post attachment"
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                            />
-                          </a>
-                        ))}
-                      </div>
-                    )}
+                    <div className="relative">
+                      <button
+                        onClick={() => {
+                          navigator.clipboard?.writeText(window.location.href);
+                          alert('Post link copied to clipboard!');
+                        }}
+                        className="text-brand-muted hover:text-brand-text p-1.5 rounded-lg hover:bg-brand-card"
+                        title="Copy post link"
+                      >
+                        <MoreHorizontal className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Post Action Bar */}
-                  <div className="px-5 sm:px-6 py-3 bg-slate-50/70 border-t border-brand-border flex items-center justify-between text-xs font-semibold text-brand-muted">
-                    <div className="flex items-center gap-4">
-                      {/* Like Button */}
+                  {/* Post Content */}
+                  <div className="px-4 space-y-2">
+                    <h3 className="text-sm font-bold text-brand-text leading-snug">{post.title}</h3>
+                    <p className="text-xs text-brand-text/90 leading-relaxed whitespace-pre-line">
+                      {post.content}
+                    </p>
+                  </div>
+
+                  {/* Facebook Multi-Image Gallery */}
+                  {post.mediaUrls && post.mediaUrls.length > 0 && (
+                    <div className="mt-2 bg-black/5">
+                      {post.mediaUrls.length === 1 ? (
+                        <div className="max-h-[460px] overflow-hidden flex items-center justify-center bg-black">
+                          <img
+                            src={post.mediaUrls[0]}
+                            alt={post.title}
+                            className="w-full object-contain max-h-[460px]"
+                          />
+                        </div>
+                      ) : post.mediaUrls.length === 2 ? (
+                        <div className="grid grid-cols-2 gap-1 max-h-[360px]">
+                          <img src={post.mediaUrls[0]} alt="Media 1" className="w-full h-72 object-cover" />
+                          <img src={post.mediaUrls[1]} alt="Media 2" className="w-full h-72 object-cover" />
+                        </div>
+                      ) : post.mediaUrls.length === 3 ? (
+                        <div className="grid grid-cols-3 gap-1 max-h-[320px]">
+                          <img src={post.mediaUrls[0]} alt="Media 1" className="col-span-2 w-full h-72 object-cover" />
+                          <div className="flex flex-col gap-1">
+                            <img src={post.mediaUrls[1]} alt="Media 2" className="w-full h-36 object-cover" />
+                            <img src={post.mediaUrls[2]} alt="Media 3" className="w-full h-36 object-cover" />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-1 max-h-[360px]">
+                          <img src={post.mediaUrls[0]} alt="Media 1" className="w-full h-40 object-cover" />
+                          <img src={post.mediaUrls[1]} alt="Media 2" className="w-full h-40 object-cover" />
+                          <img src={post.mediaUrls[2]} alt="Media 3" className="w-full h-40 object-cover" />
+                          <div className="relative w-full h-40">
+                            <img src={post.mediaUrls[3]} alt="Media 4" className="w-full h-full object-cover" />
+                            {post.mediaUrls.length > 4 && (
+                              <div className="absolute inset-0 bg-black/60 flex items-center justify-center text-white font-bold text-lg">
+                                +{post.mediaUrls.length - 4} more
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Reaction Summary Counters Row */}
+                  <div className="px-4 py-1.5 flex items-center justify-between text-xs text-brand-muted border-b border-brand-border/40 select-none">
+                    <div className="flex items-center space-x-1.5">
+                      {post.likesCount > 0 ? (
+                        <>
+                          <div className="flex items-center -space-x-1">
+                            <span className="w-5 h-5 rounded-full bg-blue-500 text-white text-[10px] flex items-center justify-center shadow">
+                              👍
+                            </span>
+                            <span className="w-5 h-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center shadow">
+                              ❤️
+                            </span>
+                            <span className="w-5 h-5 rounded-full bg-emerald-500 text-white text-[10px] flex items-center justify-center shadow">
+                              🏗️
+                            </span>
+                          </div>
+                          <span className="font-semibold text-brand-text ml-1">
+                            {post.likesCount}
+                          </span>
+                        </>
+                      ) : (
+                        <span>Be the first to react</span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center space-x-3 text-[11px]">
+                      <button onClick={() => toggleComments(post.id)} className="hover:underline">
+                        {post.commentsCount} comments
+                      </button>
+                      <span>•</span>
+                      <span>14 shares</span>
+                    </div>
+                  </div>
+
+                  {/* Action Bar (Like with Facebook Hover Dock, Comment, Share) */}
+                  <div className="px-4 pb-2 relative flex items-center justify-between text-xs font-semibold text-brand-muted">
+                    
+                    {/* Hover Reaction Popover Dock */}
+                    {hoveredReactionPostId === post.id && (
+                      <div
+                        onMouseEnter={() => {
+                          if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                        }}
+                        onMouseLeave={() => setHoveredReactionPostId(null)}
+                        className="absolute bottom-10 left-4 bg-brand-surface border border-brand-border rounded-full shadow-2xl px-2.5 py-1.5 flex items-center space-x-2 z-30 animate-in fade-in zoom-in-95 duration-150"
+                      >
+                        {(Object.keys(REACTION_CONFIG) as ReactionType[]).map((rKey) => {
+                          const conf = REACTION_CONFIG[rKey];
+                          return (
+                            <button
+                              key={rKey}
+                              onClick={() => handleReactToPost(post.id, rKey)}
+                              className="hover:scale-125 transition-transform duration-150 p-1 flex flex-col items-center group/btn"
+                              title={conf.label}
+                            >
+                              <span className="text-xl">{conf.emoji}</span>
+                              <span className="text-[9px] font-bold text-brand-muted group-hover/btn:text-brand-text">
+                                {conf.label}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Main Like Button */}
+                    <div
+                      className="relative flex-1"
+                      onMouseEnter={() => {
+                        if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                        setHoveredReactionPostId(post.id);
+                      }}
+                      onMouseLeave={() => {
+                        hoverTimeoutRef.current = setTimeout(() => {
+                          setHoveredReactionPostId(null);
+                        }, 400);
+                      }}
+                    >
                       <button
-                        onClick={() => handleToggleLike(post.id)}
-                        className={`inline-flex items-center gap-1.5 transition-colors ${
-                          post.isLikedByMe
-                            ? 'text-red-500 font-bold'
-                            : 'hover:text-red-500 text-brand-text'
+                        onClick={() => handleReactToPost(post.id, activeReaction || ReactionType.LIKE)}
+                        className={`w-full py-2 rounded-xl flex items-center justify-center space-x-2 transition-colors hover:bg-brand-card ${
+                          reactionInfo ? `${reactionInfo.color} font-bold` : 'text-brand-muted hover:text-brand-text'
                         }`}
                       >
-                        <Heart
-                          className={`w-4 h-4 ${
-                            post.isLikedByMe ? 'fill-red-500 text-red-500' : ''
-                          }`}
-                        />
-                        <span>{post.likesCount} {post.likesCount === 1 ? 'Like' : 'Likes'}</span>
-                      </button>
-
-                      {/* Comments Toggle */}
-                      <button
-                        onClick={() => handleToggleComments(post.id)}
-                        className="inline-flex items-center gap-1.5 hover:text-brand-blue text-brand-text transition-colors"
-                      >
-                        <MessageSquare className="w-4 h-4" />
-                        <span>{post.commentsCount} {post.commentsCount === 1 ? 'Comment' : 'Comments'}</span>
+                        <span className="text-base">{reactionInfo ? reactionInfo.emoji : '👍'}</span>
+                        <span>{reactionInfo ? reactionInfo.label : 'Like'}</span>
                       </button>
                     </div>
 
+                    {/* Comment Button */}
+                    <button
+                      onClick={() => toggleComments(post.id)}
+                      className="flex-1 py-2 rounded-xl flex items-center justify-center space-x-2 transition-colors hover:bg-brand-card hover:text-brand-text"
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                      <span>Comment</span>
+                    </button>
+
+                    {/* Share Button */}
                     <button
                       onClick={() => {
                         navigator.clipboard?.writeText(window.location.href);
                         alert('Post link copied to clipboard!');
                       }}
-                      className="inline-flex items-center gap-1.5 hover:text-brand-navy transition-colors"
+                      className="flex-1 py-2 rounded-xl flex items-center justify-center space-x-2 transition-colors hover:bg-brand-card hover:text-brand-text"
                     >
-                      <Share2 className="w-4 h-4" /> Share
+                      <Share2 className="w-4 h-4" />
+                      <span>Share</span>
                     </button>
                   </div>
 
-                  {/* Expandable Comments Section */}
-                  {isCommentsOpen && (
-                    <div className="p-5 sm:p-6 bg-slate-50 border-t border-brand-border space-y-4">
-                      <h4 className="text-xs font-bold text-brand-navy uppercase tracking-wider">
-                        Discussion ({commentsList.length})
-                      </h4>
-
-                      {isLoadingPostComments ? (
-                        <div className="text-center py-4 text-xs text-brand-muted">
-                          Loading comments...
+                  {/* Expanded Comments Section */}
+                  {expandedComments[post.id] && (
+                    <div className="px-4 pb-4 pt-2 border-t border-brand-border/60 space-y-3 bg-brand-bg/30">
+                      {/* Comment Input */}
+                      <div className="flex items-start space-x-2.5">
+                        <div className="w-7 h-7 rounded-full bg-brand-primary/20 text-brand-primary flex items-center justify-center font-bold text-[10px] flex-shrink-0 mt-0.5">
+                          {user?.profile?.displayName ? user.profile.displayName.substring(0, 2).toUpperCase() : 'ME'}
                         </div>
-                      ) : commentsList.length === 0 ? (
-                        <p className="text-xs text-brand-muted italic">
-                          No replies yet. Share your experience or advice below.
-                        </p>
-                      ) : (
-                        <div className="space-y-3">
-                          {commentsList.map((comm) => {
-                            const isAccepted = Boolean(
-                              comm.isAcceptedSolution || post.acceptedAnswerId === comm.id
-                            );
-                            const isPostAuthor = Boolean(user && user.id === post.authorId);
-                            const isQuestionPost = Boolean(
-                              post.isQuestion || post.postType === PostType.QUESTION
-                            );
+                        <div className="flex-1 flex items-center space-x-2">
+                          <input
+                            type="text"
+                            value={commentInputs[post.id] || ''}
+                            onChange={(e) =>
+                              setCommentInputs((prev) => ({ ...prev, [post.id]: e.target.value }))
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleAddComment(post.id);
+                            }}
+                            placeholder="Write a comment or advice..."
+                            className="flex-1 bg-brand-surface border border-brand-border rounded-full px-3.5 py-1.5 text-xs text-brand-text focus:outline-none focus:border-brand-primary"
+                          />
+                          <button
+                            onClick={() => handleAddComment(post.id)}
+                            disabled={!commentInputs[post.id]?.trim()}
+                            className="p-1.5 rounded-full bg-brand-primary text-white disabled:opacity-40 hover:bg-brand-primary-hover transition-colors"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
 
-                            return (
-                              <div
-                                key={comm.id}
-                                className={`p-4 rounded-xl border text-xs transition-all ${
-                                  isAccepted
-                                    ? 'bg-emerald-50 border-emerald-400 shadow-sm ring-1 ring-emerald-400'
-                                    : comm.isProfessionalAnswer
-                                    ? 'bg-blue-50/70 border-brand-blue/40 shadow-sm'
-                                    : 'bg-white border-brand-border'
-                                }`}
-                              >
-                                {/* Accepted Solution Banner */}
-                                {isAccepted && (
-                                  <div className="mb-2.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-xs flex items-center justify-between shadow-xs">
-                                    <span className="flex items-center gap-1.5">
-                                      <Award className="w-4 h-4 text-amber-300" />
-                                      Accepted Solution by Question Author
-                                    </span>
-                                    {isPostAuthor && (
-                                      <button
-                                        onClick={() => handleUnresolveQuestion(post.id)}
-                                        className="text-[11px] font-semibold underline text-emerald-100 hover:text-white flex items-center gap-1"
-                                      >
-                                        <RotateCcw className="w-3 h-3" /> Reopen Question
-                                      </button>
-                                    )}
-                                  </div>
-                                )}
-
-                                <div className="flex items-center justify-between mb-1">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-bold text-brand-navy">
+                      {/* Comments Thread */}
+                      <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+                        {loadingComments[post.id] ? (
+                          <p className="text-center text-xs text-brand-muted py-2">Loading comments...</p>
+                        ) : expandedComments[post.id].length === 0 ? (
+                          <p className="text-center text-xs text-brand-muted py-2">No comments yet. Start the conversation!</p>
+                        ) : (
+                          expandedComments[post.id].map((comm) => (
+                            <div key={comm.id} className="flex items-start space-x-2.5 text-xs">
+                              <div className="w-7 h-7 rounded-full bg-brand-card text-brand-text border border-brand-border flex items-center justify-center font-bold text-[10px] flex-shrink-0 mt-0.5">
+                                {comm.author.displayName.substring(0, 2).toUpperCase()}
+                              </div>
+                              <div className="flex-1 space-y-1">
+                                <div className="bg-brand-surface border border-brand-border rounded-2xl px-3 py-2 space-y-0.5">
+                                  <div className="flex items-center space-x-1.5">
+                                    <span className="font-bold text-brand-text">
                                       {comm.author.displayName}
                                     </span>
-                                    {comm.isProfessionalAnswer && (
-                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-brand-blue text-white shadow-xs">
-                                        <ShieldCheck className="w-3 h-3" /> Verified Engineer Answer
+                                    {comm.author.isVerifiedEngineer && (
+                                      <span className="text-emerald-500 text-[10px] font-semibold flex items-center">
+                                        <ShieldCheck className="w-3 h-3 mr-0.5" />
+                                        <span>Verified</span>
                                       </span>
                                     )}
                                   </div>
-                                  <span className="text-[10px] text-brand-muted">
-                                    {new Date(comm.createdAt).toLocaleDateString()}
-                                  </span>
+                                  <p className="text-brand-text/90 leading-relaxed">{comm.content}</p>
                                 </div>
-
-                                <p className="text-brand-text leading-relaxed mt-1 whitespace-pre-line">
-                                  {comm.content}
-                                </p>
-
-                                {/* Comment Actions: Helpful & Accept Solution */}
-                                <div className="mt-3 pt-2 border-t border-slate-200/60 flex items-center justify-between">
-                                  <button
-                                    onClick={() => handleToggleHelpful(comm.id, post.id)}
-                                    className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-brand-muted hover:text-brand-blue transition-colors px-2 py-1 rounded-md hover:bg-white"
-                                  >
-                                    <ThumbsUp className="w-3.5 h-3.5" />
-                                    <span>Helpful ({comm.helpfulCount || 0})</span>
-                                  </button>
-
-                                  {isQuestionPost && isPostAuthor && !isAccepted && (
-                                    <button
-                                      onClick={() => handleResolveQuestion(post.id, comm.id)}
-                                      className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100/70 hover:bg-emerald-200 px-2.5 py-1 rounded-lg transition-colors"
-                                    >
-                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                      Mark as Solution
-                                    </button>
-                                  )}
+                                <div className="flex items-center space-x-3 text-[10px] text-brand-muted px-2">
+                                  <span>{new Date(comm.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                  <button className="hover:underline font-semibold">Like</button>
+                                  <button className="hover:underline font-semibold">Reply</button>
                                 </div>
                               </div>
-                            );
-                          })}
-                        </div>
-                      )}
-
-                      {/* Comment Input Box */}
-                      <div className="flex items-center gap-2 pt-2">
-                        <input
-                          type="text"
-                          value={commentInputs[post.id] || ''}
-                          onChange={(e) =>
-                            setCommentInputs((prev) => ({
-                              ...prev,
-                              [post.id]: e.target.value,
-                            }))
-                          }
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleAddComment(post.id);
-                          }}
-                          placeholder={
-                            token
-                              ? 'Write a helpful reply or professional advice...'
-                              : 'Sign in to reply...'
-                          }
-                          className="flex-grow px-3.5 py-2.5 rounded-xl border border-brand-border bg-white text-xs text-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-blue"
-                        />
-                        <button
-                          onClick={() => handleAddComment(post.id)}
-                          className="btn-primary p-2.5 rounded-xl"
-                        >
-                          <Send className="w-4 h-4" />
-                        </button>
+                            </div>
+                          ))
+                        )}
                       </div>
                     </div>
                   )}
@@ -778,139 +1123,346 @@ function FeedContent() {
               );
             })
           )}
-        </div>
+        </main>
+
+        {/* ========================================================
+            RIGHT SIDEBAR (Contacts & Instant Docked Chat)
+           ======================================================== */}
+        <aside className="hidden lg:block lg:col-span-3 space-y-4 sticky top-20 self-start">
+          
+          {/* Active Contacts / Instant Chat */}
+          <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 shadow-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                <h4 className="text-xs font-bold text-brand-text uppercase tracking-wider">
+                  Active Engineers & Contacts
+                </h4>
+              </div>
+              <span className="text-[10px] text-brand-muted">{onlineContacts.length} online</span>
+            </div>
+
+            <div className="space-y-1 divide-y divide-brand-border/30">
+              {onlineContacts.map((contact) => (
+                <div
+                  key={contact.id}
+                  onClick={() => handleOpenContactChat(contact)}
+                  className="pt-2 flex items-center justify-between p-1.5 rounded-xl hover:bg-brand-card cursor-pointer transition-colors group"
+                >
+                  <div className="flex items-center space-x-2.5 min-w-0">
+                    <div className="relative flex-shrink-0">
+                      <img
+                        src={contact.avatar}
+                        alt={contact.name}
+                        className="w-8 h-8 rounded-full object-cover ring-1 ring-brand-border"
+                      />
+                      <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 ring-1 ring-brand-surface" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-brand-text group-hover:text-brand-primary truncate transition-colors">
+                        {contact.name}
+                      </p>
+                      <p className="text-[10px] text-brand-muted truncate">{contact.district}</p>
+                    </div>
+                  </div>
+
+                  <button
+                    className="p-1 rounded-lg text-brand-muted group-hover:text-brand-primary group-hover:bg-brand-primary/10 transition-colors"
+                    title="Send instant message"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Trending Sri Lankan Construction Topics */}
+          <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 shadow-sm space-y-3">
+            <div className="flex items-center space-x-2 text-xs font-bold text-brand-text uppercase tracking-wider">
+              <TrendingUp className="w-4 h-4 text-brand-primary" />
+              <span>Trending in Construction</span>
+            </div>
+
+            <div className="space-y-2.5 text-xs">
+              {[
+                { tag: '#ConcreteCuring', count: '1.4k posts', desc: 'SLS 1253 water immersion codes' },
+                { tag: '#RoofSlabCasting', count: '890 posts', desc: 'Monsoon waterproofing techniques' },
+                { tag: '#RetainingWalls', count: '540 posts', desc: 'NBRO slope safety in Kandy & Badulla' },
+                { tag: '#SolarNetMetering', count: '760 posts', desc: 'CEB hybrid battery systems 2026' },
+                { tag: '#CIDA_GradeBuilders', count: '420 posts', desc: 'Contractor vetting checklist' },
+              ].map((item) => (
+                <div
+                  key={item.tag}
+                  onClick={() => setSearchQuery(item.tag.replace('#', ''))}
+                  className="p-2 rounded-xl hover:bg-brand-card cursor-pointer transition-colors"
+                >
+                  <p className="font-bold text-brand-text hover:text-brand-primary transition-colors">
+                    {item.tag}
+                  </p>
+                  <p className="text-[10px] text-brand-muted">{item.desc}</p>
+                  <span className="text-[9px] text-brand-primary font-semibold">{item.count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </aside>
+
       </div>
 
-      {/* Create Post Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl border border-brand-border max-h-[90vh] overflow-y-auto space-y-5">
-            <div className="flex items-center justify-between pb-3 border-b border-brand-border">
-              <div>
-                <h3 className="text-lg font-bold text-brand-navy">Create Community Post</h3>
-                <p className="text-xs text-brand-muted">Share with homeowners and verified engineers</p>
+      {/* ========================================================
+          FULL SCREEN / MODAL STORY VIEWER (Facebook Stories Player)
+         ======================================================== */}
+      {activeStoryIndex !== null && stories[activeStoryIndex] && (
+        <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4">
+          <button
+            onClick={() => setActiveStoryIndex(null)}
+            className="absolute top-4 right-4 text-white hover:text-amber-400 p-2.5 rounded-full bg-slate-900/80 hover:bg-slate-900 border border-white/20 z-20 transition-colors shadow-lg"
+            title="Close Story"
+          >
+            <X className="w-6 h-6" />
+          </button>
+
+          <div className="relative w-full max-w-sm h-[650px] bg-slate-900 rounded-2xl overflow-hidden shadow-2xl flex flex-col justify-between">
+            <img
+              src={stories[activeStoryIndex].mediaUrl}
+              alt={stories[activeStoryIndex].caption || 'Story'}
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-black/60 pointer-events-none" />
+
+            {/* Top Bar with Progress */}
+            <div className="relative z-10 p-4 space-y-2">
+              <div className="w-full bg-white/40 h-1.5 rounded-full overflow-hidden">
+                <div className="bg-brand-orange h-full w-full animate-pulse" />
               </div>
+
+              <div className="flex items-center space-x-2 text-white">
+                <div className="w-8 h-8 rounded-full overflow-hidden bg-white ring-2 ring-brand-blue">
+                  {stories[activeStoryIndex].authorAvatar ? (
+                    <img
+                      src={stories[activeStoryIndex].authorAvatar}
+                      alt={stories[activeStoryIndex].authorName}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-brand-blue text-white text-xs font-bold flex items-center justify-center">
+                      {stories[activeStoryIndex].authorName.substring(0, 1)}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <p className="text-xs font-bold leading-tight drop-shadow">{stories[activeStoryIndex].authorName}</p>
+                  <p className="text-[10px] text-white/90 drop-shadow">
+                    {stories[activeStoryIndex].locationTag && `📍 ${stories[activeStoryIndex].locationTag} • `}
+                    {new Date(stories[activeStoryIndex].createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Caption */}
+            <div className="relative z-10 p-4 text-white space-y-2">
+              {stories[activeStoryIndex].caption && (
+                <p className="text-sm font-semibold leading-relaxed drop-shadow bg-black/40 backdrop-blur-xs p-3 rounded-xl border border-white/10">
+                  {stories[activeStoryIndex].caption}
+                </p>
+              )}
+
+              <div className="flex items-center space-x-2 pt-2">
+                <input
+                  type="text"
+                  placeholder={`Reply to ${stories[activeStoryIndex].authorName}...`}
+                  className="flex-1 bg-black/60 border border-white/30 rounded-full px-4 py-2 text-xs text-white placeholder:text-white/70 focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                />
+                <button
+                  onClick={() => {
+                    alert('Story reply sent!');
+                    setActiveStoryIndex(null);
+                  }}
+                  className="p-2 rounded-full bg-brand-blue hover:bg-blue-600 text-white shadow-md transition-colors"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          CREATE POST MODAL (Rich Facebook Composer)
+         ======================================================== */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white text-slate-900 border border-slate-200 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="font-bold text-sm text-slate-900">Create Construction Post</h3>
               <button
+                type="button"
                 onClick={() => setShowCreateModal(false)}
-                className="text-brand-muted hover:text-brand-navy font-bold text-lg"
+                className="text-slate-400 hover:text-slate-700 p-1 rounded-lg"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreatePost} className="space-y-4">
+            <form onSubmit={handleCreatePost} className="p-5 overflow-y-auto space-y-4 text-xs bg-white">
+              {/* Post Type Selector */}
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { type: PostType.GENERAL, label: 'General' },
+                  { type: PostType.PROJECT_UPDATE, label: 'Site Milestone' },
+                  { type: PostType.QUESTION, label: 'Question' },
+                ].map((item) => (
+                  <button
+                    key={item.type}
+                    type="button"
+                    onClick={() => setPostType(item.type)}
+                    className={`py-2 px-2.5 rounded-xl font-bold text-center border transition-all ${
+                      postType === item.type
+                        ? 'bg-brand-blue text-white border-brand-blue shadow-xs'
+                        : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Title */}
               <div>
-                <label className="block text-xs font-semibold text-brand-navy mb-1">
-                  Discussion Title
+                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                  Title / Headline
                 </label>
                 <input
                   type="text"
-                  required
                   value={postTitle}
                   onChange={(e) => setPostTitle(e.target.value)}
-                  placeholder="e.g. Recommended waterproof membrane for exposed concrete roof terrace in Kandy"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-brand-border text-xs text-brand-navy focus:ring-2 focus:ring-brand-blue focus:outline-none"
+                  placeholder="e.g., Concrete raft foundation casting in Kandy..."
+                  className="w-full bg-slate-50 focus:bg-white text-slate-900 placeholder:text-slate-400 rounded-xl px-3.5 py-2.5 border border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                  required
                 />
               </div>
 
+              {/* Group & Location Check-in Selectors */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-brand-navy mb-1">
-                    Post Type
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                    Check-in Location
                   </label>
                   <select
-                    value={postType}
-                    onChange={(e) => setPostType(e.target.value as PostType)}
-                    className="w-full px-3 py-2 rounded-xl border border-brand-border text-xs text-brand-navy bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                    value={postLocationTag}
+                    onChange={(e) => setPostLocationTag(e.target.value)}
+                    className="w-full bg-slate-50 focus:bg-white text-slate-900 rounded-xl px-3 py-2.5 border border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-blue"
                   >
-                    <option value={PostType.QUESTION}>Question & Problem</option>
-                    <option value={PostType.TIP}>Construction Tip</option>
-                    <option value={PostType.PROJECT_UPDATE}>Project Update</option>
-                    <option value={PostType.GENERAL}>General Discussion</option>
+                    {SRI_LANKAN_DISTRICTS.map((d) => (
+                      <option key={d} value={d}>
+                        📍 {d}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-brand-navy mb-1">
-                    Category
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                    Post to Group (Optional)
                   </label>
                   <select
-                    value={postCategory}
-                    onChange={(e) => setPostCategory(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-brand-border text-xs text-brand-navy bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                    value={selectedGroupId}
+                    onChange={(e) => setSelectedGroupId(e.target.value)}
+                    className="w-full bg-slate-50 focus:bg-white text-slate-900 rounded-xl px-3 py-2.5 border border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-blue"
                   >
-                    {CONSTRUCTION_CATEGORIES.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
+                    <option value="">No Group (Public Feed)</option>
+                    {groups.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.icon} {g.name}
                       </option>
                     ))}
                   </select>
                 </div>
               </div>
 
+              {/* Category */}
               <div>
-                <label className="block text-xs font-semibold text-brand-navy mb-1">
-                  Content & Details
+                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                  Construction Category
+                </label>
+                <select
+                  value={postCategory}
+                  onChange={(e) => setPostCategory(e.target.value)}
+                  className="w-full bg-slate-50 focus:bg-white text-slate-900 rounded-xl px-3 py-2.5 border border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                >
+                  {CONSTRUCTION_CATEGORIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Content */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                  Description / Site Details
                 </label>
                 <textarea
-                  rows={5}
-                  required
+                  rows={4}
                   value={postContent}
                   onChange={(e) => setPostContent(e.target.value)}
-                  placeholder="Describe your construction situation, materials being used, dimensions, and specific questions..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-brand-border text-xs text-brand-navy focus:ring-2 focus:ring-brand-blue focus:outline-none"
+                  placeholder="Detail the materials used, challenges faced, or technical questions for verified engineers..."
+                  className="w-full bg-slate-50 focus:bg-white text-slate-900 placeholder:text-slate-400 rounded-xl p-3 border border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                  required
                 />
               </div>
 
-              {/* Photo Upload */}
+              {/* Photo Upload & Previews */}
               <div className="space-y-2">
-                <label className="block text-xs font-semibold text-brand-navy">
-                  Attach Site Photos (Optional)
+                <label className="block text-[11px] font-bold text-slate-700 uppercase">
+                  Attach Site Photos
                 </label>
-                <label className="flex items-center justify-center gap-2 p-3 bg-slate-50 border border-brand-border border-dashed rounded-xl cursor-pointer hover:border-brand-blue transition-colors">
-                  <UploadCloud className="w-4 h-4 text-brand-blue" />
-                  <span className="text-xs font-medium text-brand-text">
-                    {isUploadingMedia ? 'Uploading image...' : 'Upload Image (PNG, JPG)'}
-                  </span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    disabled={isUploadingMedia}
-                    onChange={handleImageUpload}
-                    className="hidden"
-                  />
-                </label>
+                <div className="flex flex-wrap gap-2">
+                  {mediaUrls.map((url, i) => (
+                    <div key={i} className="relative w-20 h-20 rounded-xl overflow-hidden border border-slate-200 group">
+                      <img src={url} alt={`Preview ${i}`} className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setMediaUrls((prev) => prev.filter((_, idx) => idx !== i))}
+                        className="absolute top-1 right-1 bg-black/70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
 
-                {mediaUrls.length > 0 && (
-                  <div className="flex gap-2 overflow-x-auto py-1">
-                    {mediaUrls.map((url, i) => (
-                      <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border">
-                        <img src={url} alt="upload preview" className="w-full h-full object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => setMediaUrls(mediaUrls.filter((_, idx) => idx !== i))}
-                          className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full p-0.5"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                  <label className="w-20 h-20 rounded-xl border-2 border-dashed border-slate-300 hover:border-brand-blue flex flex-col items-center justify-center cursor-pointer transition-colors bg-slate-50 hover:bg-slate-100">
+                    <UploadCloud className="w-5 h-5 text-slate-500" />
+                    <span className="text-[9px] text-slate-500 font-bold mt-1">Upload</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      disabled={isUploadingMedia}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+                {isUploadingMedia && <p className="text-[10px] text-brand-blue font-bold animate-pulse">Uploading photo...</p>}
               </div>
 
-              <div className="flex justify-end gap-3 pt-3 border-t border-brand-border">
+              {/* Action Buttons */}
+              <div className="pt-3 border-t border-slate-200 flex items-center justify-end space-x-2">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="btn-secondary text-xs"
+                  className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmittingPost || isUploadingMedia}
-                  className="btn-accent text-xs font-bold"
+                  disabled={isSubmittingPost || !postTitle.trim() || !postContent.trim()}
+                  className="px-5 py-2.5 rounded-xl bg-brand-blue hover:bg-blue-700 text-white font-bold text-xs shadow-md disabled:opacity-40 transition-colors"
                 >
                   {isSubmittingPost ? 'Publishing...' : 'Publish Post'}
                 </button>
@@ -919,19 +1471,91 @@ function FeedContent() {
           </div>
         </div>
       )}
+
+      {/* ========================================================
+          CREATE STORY MODAL
+         ======================================================== */}
+      {showStoryUploadModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white text-slate-900 border border-slate-200 rounded-2xl w-full max-w-md shadow-2xl p-5 space-y-4 text-xs">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <h3 className="font-bold text-sm text-slate-900">Post a Site Story Snap</h3>
+              <button
+                type="button"
+                onClick={() => setShowStoryUploadModal(false)}
+                className="text-slate-400 hover:text-slate-700 p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateStory} className="space-y-3 bg-white">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Site Photo URL</label>
+                <input
+                  type="url"
+                  value={storyMediaUrl}
+                  onChange={(e) => setStoryMediaUrl(e.target.value)}
+                  placeholder="https://images.unsplash.com/... or paste image URL"
+                  className="w-full bg-slate-50 focus:bg-white text-slate-900 placeholder:text-slate-400 rounded-xl px-3.5 py-2.5 border border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Location Check-in</label>
+                <select
+                  value={storyLocation}
+                  onChange={(e) => setStoryLocation(e.target.value)}
+                  className="w-full bg-slate-50 focus:bg-white text-slate-900 rounded-xl px-3.5 py-2.5 border border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                >
+                  {SRI_LANKAN_DISTRICTS.map((d) => (
+                    <option key={d} value={d}>
+                      📍 {d}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Quick Caption</label>
+                <input
+                  type="text"
+                  value={storyCaption}
+                  onChange={(e) => setStoryCaption(e.target.value)}
+                  placeholder="e.g., Concrete slab reinforcement ready for inspection!"
+                  className="w-full bg-slate-50 focus:bg-white text-slate-900 placeholder:text-slate-400 rounded-xl px-3.5 py-2.5 border border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setShowStoryUploadModal(false)}
+                  className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUploadingStory || !storyMediaUrl.trim()}
+                  className="px-5 py-2.5 rounded-xl bg-brand-blue hover:bg-blue-700 text-white font-bold shadow-md disabled:opacity-40"
+                >
+                  {isUploadingStory ? 'Sharing...' : 'Share to Story'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
 
 export default function FeedPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-[60vh] flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-blue"></div>
-        </div>
-      }
-    >
+    <Suspense fallback={<div className="p-8 text-center text-xs text-brand-muted">Loading feed...</div>}>
       <FeedContent />
     </Suspense>
   );

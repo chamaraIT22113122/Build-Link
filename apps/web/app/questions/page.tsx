@@ -87,7 +87,7 @@ function QuestionsContent() {
       {/* Hero Banner */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-brand-navy via-[#102d54] to-brand-blue text-white p-8 sm:p-10 shadow-xl">
         <div className="relative z-10 max-w-2xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md text-brand-orange text-xs font-bold uppercase tracking-wider mb-3">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 border border-white/20 text-amber-300 text-xs font-bold uppercase tracking-wider mb-3 shadow-xs">
             <Sparkles className="w-3.5 h-3.5 text-brand-orange" />
             Engineering Knowledge Network
           </div>
@@ -108,7 +108,7 @@ function QuestionsContent() {
             </Link>
             <Link
               href="/feed?type=QUESTION"
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/15 hover:bg-white/20 text-white font-semibold text-sm transition-colors backdrop-blur-sm"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 border border-white/25 text-white font-bold text-sm transition-colors shadow-sm"
             >
               <MessageSquare className="w-4 h-4" />
               View Feed Discussions

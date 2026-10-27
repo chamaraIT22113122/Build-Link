@@ -9,6 +9,7 @@ import {
   PostType,
   ConsultationType,
   ProjectStage,
+  DocumentType,
 } from '@buildlink/shared';
 
 export interface SeedCredentials {
@@ -243,25 +244,21 @@ export async function seedDatabase(): Promise<void> {
 
     // Submit verification application
     try {
-      await VerificationService.applyForVerification(rohan.id, {
+      await VerificationService.applyForVerification(rohan.id, rohan.email, {
         registrationBody: 'Institution of Engineers Sri Lanka (IESL)',
         registrationNumber: 'IESL-AM-9812',
-        specializations: ['Marine & Coastal Concrete', 'Saline Resistant Foundations'],
-        yearsOfExperience: 7,
         documents: [
           {
-            type: 'DEGREE_CERTIFICATE',
-            fileName: 'BSc_Eng_University_of_Moratuwa.pdf',
+            documentType: DocumentType.DEGREE_CERTIFICATE,
+            originalFilename: 'BSc_Eng_University_of_Moratuwa.pdf',
             fileUrl: 'https://storage.buildlink.lk/docs/degrees/moratuwa_civil_rohan.pdf',
-            fileSize: 2450000,
-            mimeType: 'application/pdf',
+            fileSizeBytes: 2450000,
           },
           {
-            type: 'IESL_MEMBERSHIP_CARD',
-            fileName: 'IESL_Associate_Member_Card.pdf',
+            documentType: DocumentType.IESL_MEMBERSHIP_CARD,
+            originalFilename: 'IESL_Associate_Member_Card.pdf',
             fileUrl: 'https://storage.buildlink.lk/docs/licenses/iesl_am_9812.pdf',
-            fileSize: 1120000,
-            mimeType: 'application/pdf',
+            fileSizeBytes: 1120000,
           },
         ],
       });

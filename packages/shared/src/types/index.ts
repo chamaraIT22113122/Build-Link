@@ -115,6 +115,7 @@ export interface UserProfileDto {
   city?: string;
   district?: string;
   phoneNumber?: string;
+  coverPhotoUrl?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -190,6 +191,7 @@ export interface UpdateEngineerProfileRequestDto {
   registrationNumber?: string;
   consultationFee?: number;
   availableForConsultation?: boolean;
+  bio?: string;
 }
 
 export interface ChangePasswordRequestDto {
@@ -279,6 +281,22 @@ export interface PostAuthorDto {
   engineerTitle?: string;
 }
 
+export enum ReactionType {
+  LIKE = 'LIKE',       // 👍 Like
+  LOVE = 'LOVE',       // ❤️ Love
+  INSIGHT = 'INSIGHT', // 💡 Insightful
+  SOLID = 'SOLID',     // 🏗️ Solid Work
+  CAUTION = 'CAUTION', // ⚠️ Caution
+}
+
+export interface PostReactionBreakdownDto {
+  like: number;
+  love: number;
+  insight: number;
+  solid: number;
+  caution: number;
+}
+
 export interface PostDto {
   id: string;
   authorId: string;
@@ -291,11 +309,16 @@ export interface PostDto {
   questionStatus?: QuestionStatus;
   isQuestion?: boolean;
   urgency?: string;
+  locationTag?: string;
+  groupId?: string;
+  groupName?: string;
   likesCount: number;
   commentsCount: number;
   isResolved: boolean;
   acceptedAnswerId?: string;
   isLikedByMe?: boolean;
+  userReaction?: ReactionType | null;
+  reactionBreakdown?: PostReactionBreakdownDto;
   createdAt: string;
   updatedAt: string;
 }
@@ -308,6 +331,9 @@ export interface CreatePostDto {
   mediaUrls?: string[];
   isQuestion?: boolean;
   urgency?: string;
+  locationTag?: string;
+  groupId?: string;
+  groupName?: string;
 }
 
 export interface UpdatePostDto {
@@ -485,6 +511,8 @@ export interface CreateProjectDto {
   district: string;
   stage?: ProjectStage;
   estimatedBudget?: number;
+  budget?: number;
+  spent?: number;
   assignedEngineerId?: string;
   startDate?: string;
   targetCompletionDate?: string;
@@ -635,6 +663,53 @@ export interface UserConnectionDto {
   isVerifiedEngineer?: boolean;
   createdAt: string;
 }
+
+// Facebook Stories (Site Snaps) DTOs
+export interface StoryDto {
+  id: string;
+  authorId: string;
+  authorName: string;
+  authorAvatar?: string;
+  authorRole: UserRole;
+  isVerifiedEngineer?: boolean;
+  mediaUrl: string;
+  caption?: string;
+  locationTag?: string;
+  createdAt: string;
+  expiresAt: string;
+  isViewed?: boolean;
+}
+
+export interface CreateStoryDto {
+  mediaUrl: string;
+  caption?: string;
+  locationTag?: string;
+}
+
+// Facebook-style Construction Groups & Communities DTOs
+export interface ConstructionGroupDto {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  category: string;
+  coverImage?: string;
+  icon?: string;
+  membersCount: number;
+  postsCount: number;
+  isMember?: boolean;
+  isPrivate?: boolean;
+  locationDistrict?: string;
+  createdAt: string;
+}
+
+export interface ToggleReactionResponseDto {
+  isLiked: boolean;
+  likesCount: number;
+  userReaction?: ReactionType | null;
+  reactionBreakdown: PostReactionBreakdownDto;
+}
+
 
 
 

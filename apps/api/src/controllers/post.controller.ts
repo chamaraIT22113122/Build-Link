@@ -188,7 +188,8 @@ export class PostController {
       const userId = req.user?.id;
       if (!userId) return sendError(res, 'UNAUTHORIZED', 'Sign in to like posts.', 401);
 
-      const result = await PostService.toggleLike(postId, userId);
+      const reactionType = req.body?.reaction || req.body?.reactionType || undefined;
+      const result = await PostService.toggleLike(postId, userId, reactionType);
       return sendSuccess(res, result, 200);
     } catch (err: unknown) {
       if (err instanceof Error && err.message === 'POST_NOT_FOUND') {
@@ -393,5 +394,80 @@ export class PostController {
       );
     }
   }
+
+  // --- Facebook Stories ---
+  public static async getStories(req: Request, res: Response): Promise<Response> {
+    try {
+      const currentUserId = req.user?.id;
+      const stories = await PostService.getStories(currentUserId);
+      return sendSuccess(res, stories, 200);
+    } catch (err: unknown) {
+      return sendError(
+        res,
+        'INTERNAL_SERVER_ERROR',
+        'Failed to fetch stories.',
+        500,
+        err instanceof Error ? err.message : undefined
+      );
+    }
+  }
+
+  public static async createStory(req: Request, res: Response): Promise<Response> {
+    try {
+      const authorId = req.user?.id;
+      if (!authorId) return sendError(res, 'UNAUTHORIZED', 'Sign in to post a story.', 401);
+
+      const { mediaUrl, caption, locationTag } = req.body;
+      if (!mediaUrl) return sendError(res, 'VALIDATION_ERROR', 'Media URL is required.', 400);
+
+      const story = await PostService.createStory(authorId, { mediaUrl, caption, locationTag });
+      return sendSuccess(res, story, 201);
+    } catch (err: unknown) {
+      return sendError(
+        res,
+        'INTERNAL_SERVER_ERROR',
+        'Failed to create story.',
+        500,
+        err instanceof Error ? err.message : undefined
+      );
+    }
+  }
+
+  // --- Facebook Groups ---
+  public static async getGroups(req: Request, res: Response): Promise<Response> {
+    try {
+      const currentUserId = req.user?.id;
+      const groups = await PostService.getGroups(currentUserId);
+      return sendSuccess(res, groups, 200);
+    } catch (err: unknown) {
+      return sendError(
+        res,
+        'INTERNAL_SERVER_ERROR',
+        'Failed to load groups.',
+        500,
+        err instanceof Error ? err.message : undefined
+      );
+    }
+  }
+
+  public static async toggleJoinGroup(req: Request, res: Response): Promise<Response> {
+    try {
+      const userId = req.user?.id;
+      if (!userId) return sendError(res, 'UNAUTHORIZED', 'Sign in to join groups.', 401);
+
+      const groupId = req.params.groupId;
+      const result = await PostService.toggleJoinGroup(userId, groupId);
+      return sendSuccess(res, result, 200);
+    } catch (err: unknown) {
+      return sendError(
+        res,
+        'INTERNAL_SERVER_ERROR',
+        'Failed to update group membership.',
+        500,
+        err instanceof Error ? err.message : undefined
+      );
+    }
+  }
 }
+
 

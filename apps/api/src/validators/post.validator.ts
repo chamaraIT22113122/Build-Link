@@ -14,6 +14,9 @@ export const createPostSchema = z.object({
   category: z.string().trim().min(1, 'Category is required'),
   postType: z.nativeEnum(PostType).default(PostType.GENERAL).optional(),
   mediaUrls: z.array(z.string()).optional(),
+  locationTag: z.string().optional(),
+  groupId: z.string().optional(),
+  groupName: z.string().optional(),
 });
 
 export const updatePostSchema = z.object({

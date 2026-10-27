@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import '../styles/globals.css';
 import { Navbar } from '../components/Navbar';
 import { Footer } from '../components/Footer';
+import { DockedMessenger } from '../components/DockedMessenger';
 import { AuthProvider } from '../context/AuthContext';
 
 export const metadata: Metadata = {
@@ -34,6 +35,7 @@ export default function RootLayout({
         <AuthProvider>
           <Navbar />
           <main className="flex-grow">{children}</main>
+          <DockedMessenger />
           <Footer />
         </AuthProvider>
       </body>

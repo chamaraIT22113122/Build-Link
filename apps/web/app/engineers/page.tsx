@@ -186,7 +186,7 @@ function EngineersDirectoryContent() {
       {/* Header Banner */}
       <div className="bg-gradient-to-r from-brand-navy via-slate-900 to-brand-blue rounded-3xl p-6 sm:p-10 text-white relative overflow-hidden shadow-xl">
         <div className="relative z-10 max-w-2xl space-y-3">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md text-xs font-semibold text-blue-200 border border-white/10">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 border border-white/20 text-xs font-bold text-amber-300 shadow-xs">
             <ShieldCheck className="w-4 h-4 text-brand-orange" />
             <span>Verified Sri Lankan Construction Engineers</span>
           </div>

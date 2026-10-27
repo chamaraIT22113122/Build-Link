@@ -25,6 +25,7 @@ import {
   HardHat,
   User,
   Plus,
+  ChevronDown,
 } from 'lucide-react';
 
 function MessengerContent() {
@@ -48,6 +49,7 @@ function MessengerContent() {
   const [isSending, setIsSending] = useState(false);
   const [loadingThread, setLoadingThread] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
 
   // File Attachments State
   const [pendingAttachments, setPendingAttachments] = useState<
@@ -56,7 +58,9 @@ function MessengerContent() {
   const [isUploading, setIsUploading] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const isNearBottomRef = useRef(true);
+  const shouldForceScrollRef = useRef(true);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050/api/v1';
 
@@ -132,42 +136,83 @@ function MessengerContent() {
     }
   };
 
+  // Detect when user scrolls up to read old messages vs when they are at bottom
+  const handleMessagesScroll = () => {
+    if (!messagesContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+    const distanceToBottom = scrollHeight - scrollTop - clientHeight;
+    const isNearBottom = distanceToBottom < 100;
+    isNearBottomRef.current = isNearBottom;
+    setShowScrollBottom(!isNearBottom);
+  };
+
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTo({
+        top: messagesContainerRef.current.scrollHeight,
+        behavior,
+      });
+      isNearBottomRef.current = true;
+      setShowScrollBottom(false);
+    }
+  };
+
   // Load message thread for active conversation
-  const loadThread = async (otherUserId: string) => {
+  const loadThread = async (otherUserId: string, isPolling = false) => {
     if (!token) return;
-    setLoadingThread(true);
+    if (!isPolling) setLoadingThread(true);
     try {
       const res = await fetch(`${apiUrl}/messages/thread/${otherUserId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
-        setMessages(data.data);
+        setMessages((prev) => {
+          // Prevent re-renders and auto-scroll if polled messages haven't changed
+          if (
+            prev.length === data.data.length &&
+            prev[prev.length - 1]?.id === data.data[data.data.length - 1]?.id
+          ) {
+            return prev;
+          }
+          return data.data;
+        });
       }
     } catch (err) {
       console.error('Failed to load messages thread:', err);
     } finally {
-      setLoadingThread(false);
+      if (!isPolling) setLoadingThread(false);
     }
   };
 
   useEffect(() => {
     if (activePartnerId && token) {
-      loadThread(activePartnerId);
-      // Auto-poll new messages every 3 seconds
+      shouldForceScrollRef.current = true;
+      isNearBottomRef.current = true;
+      setShowScrollBottom(false);
+      loadThread(activePartnerId, false);
+      // Auto-poll new messages every 3 seconds without disturbing scroll
       const interval = setInterval(() => {
-        loadThread(activePartnerId);
+        loadThread(activePartnerId, true);
       }, 3000);
       return () => clearInterval(interval);
     }
   }, [activePartnerId, token]);
 
-  // Scroll to bottom when messages change
+  // Only auto-scroll to bottom if user is already at the bottom or sent a message
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (!messagesContainerRef.current) return;
+    if (shouldForceScrollRef.current || isNearBottomRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+      shouldForceScrollRef.current = false;
+      setShowScrollBottom(false);
+    }
   }, [messages]);
 
   const handleSelectConversation = (conv: ConversationSummaryDto) => {
+    shouldForceScrollRef.current = true;
+    isNearBottomRef.current = true;
+    setShowScrollBottom(false);
     setActivePartnerId(conv.otherUserId);
     setActivePartner({
       id: conv.otherUserId,
@@ -246,6 +291,8 @@ function MessengerContent() {
 
       const data = await res.json();
       if (data.success && data.data) {
+        shouldForceScrollRef.current = true;
+        isNearBottomRef.current = true;
         setMessages((prev) => [...prev, data.data]);
         setMessageInput('');
         setPendingAttachments([]);
@@ -317,8 +364,8 @@ function MessengerContent() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-      <div className="bg-white rounded-3xl border border-brand-border shadow-lg overflow-hidden h-[calc(100vh-140px)] min-h-[600px] flex flex-col md:flex-row">
+    <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 py-2 sm:py-3 h-[calc(100vh-64px)] sm:h-[calc(100vh-80px)]">
+      <div className="bg-white rounded-2xl sm:rounded-3xl border border-brand-border shadow-lg overflow-hidden h-full flex flex-col md:flex-row">
         {/* Left Pane: Conversations List (Messenger Sidebar) */}
         <div
           className={`w-full md:w-80 lg:w-96 border-r border-brand-border flex flex-col bg-slate-50/50 ${
@@ -489,57 +536,75 @@ function MessengerContent() {
               </div>
 
               {/* Chat Thread Messages */}
-              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3.5 bg-slate-50/30">
-                {loadingThread && messages.length === 0 ? (
-                  <div className="flex justify-center py-10">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-blue" />
-                  </div>
-                ) : messages.length === 0 ? (
-                  <div className="text-center py-16 space-y-2 text-brand-muted text-xs">
-                    <p className="font-bold text-brand-navy">No messages yet with {activePartner?.name}</p>
-                    <p>Send a message, site photos, blueprints, or ask for construction guidance freely!</p>
-                  </div>
-                ) : (
-                  messages.map((m) => {
-                    const isMe = m.senderId === user?.id;
+              <div className="relative flex-1 flex flex-col min-h-0 bg-slate-50/30">
+                <div
+                  ref={messagesContainerRef}
+                  onScroll={handleMessagesScroll}
+                  className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3.5"
+                >
+                  {loadingThread && messages.length === 0 ? (
+                    <div className="flex justify-center py-10">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-blue" />
+                    </div>
+                  ) : messages.length === 0 ? (
+                    <div className="text-center py-16 space-y-2 text-brand-muted text-xs">
+                      <p className="font-bold text-brand-navy">No messages yet with {activePartner?.name}</p>
+                      <p>Send a message, site photos, blueprints, or ask for construction guidance freely!</p>
+                    </div>
+                  ) : (
+                    messages.map((m) => {
+                      const isMe = m.senderId === user?.id;
 
-                    return (
-                      <div
-                        key={m.id}
-                        className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
-                      >
-                        <div className="flex items-center gap-1.5 mb-1 text-[11px] text-brand-muted">
-                          <span className="font-bold text-brand-navy">{m.senderName}</span>
-                          <span>•</span>
-                          <span>
-                            {new Date(m.createdAt).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </span>
-                        </div>
-
+                      return (
                         <div
-                          className={`max-w-[85%] sm:max-w-[70%] rounded-2xl px-4 py-2.5 text-xs ${
-                            isMe
-                              ? 'bg-brand-blue text-white rounded-br-none shadow-sm'
-                              : 'bg-white text-brand-navy border border-brand-border rounded-bl-none shadow-xs'
-                          }`}
+                          key={m.id}
+                          className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
                         >
-                          <p className="leading-relaxed whitespace-pre-line">{m.content}</p>
+                          <div className="flex items-center gap-1.5 mb-1 text-[11px] text-brand-muted">
+                            <span className="font-bold text-brand-navy">{m.senderName}</span>
+                            <span>•</span>
+                            <span>
+                              {new Date(m.createdAt).toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </span>
+                          </div>
 
-                          {/* Attachments (Images, Videos, Blueprints) */}
-                          {m.attachments && m.attachments.length > 0 && (
-                            <div className="mt-2 space-y-1">
-                              {m.attachments.map((url, idx) => renderAttachment(url, idx))}
-                            </div>
-                          )}
+                          <div
+                            className={`max-w-[85%] sm:max-w-[70%] rounded-2xl px-4 py-2.5 text-xs ${
+                              isMe
+                                ? 'bg-brand-blue text-white rounded-br-none shadow-sm'
+                                : 'bg-white text-brand-navy border border-brand-border rounded-bl-none shadow-xs'
+                            }`}
+                          >
+                            <p className="leading-relaxed whitespace-pre-line">{m.content}</p>
+
+                            {/* Attachments (Images, Videos, Blueprints) */}
+                            {m.attachments && m.attachments.length > 0 && (
+                              <div className="mt-2 space-y-1">
+                                {m.attachments.map((url, idx) => renderAttachment(url, idx))}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Floating Jump to Latest Button when reading old messages */}
+                {showScrollBottom && (
+                  <button
+                    type="button"
+                    onClick={() => scrollToBottom('smooth')}
+                    className="absolute bottom-4 right-5 z-20 flex items-center gap-1.5 px-3.5 py-1.5 bg-brand-navy/90 hover:bg-brand-navy text-white text-xs font-semibold rounded-full shadow-lg backdrop-blur-xs transition-all hover:scale-105 active:scale-95"
+                    title="Jump to latest messages"
+                  >
+                    <span>Latest messages</span>
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
                 )}
-                <div ref={messagesEndRef} />
               </div>
 
               {/* Pending Attachments Bar */}

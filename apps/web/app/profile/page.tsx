@@ -8,6 +8,9 @@ import {
   UserRole,
   VerificationStatus,
   CONSTRUCTION_CATEGORIES,
+  SRI_LANKAN_DISTRICTS,
+  PostDto,
+  DirectMessageDto,
 } from '@buildlink/shared';
 import {
   User,
@@ -27,6 +30,17 @@ import {
   FileCheck2,
   Sparkles,
   Calendar,
+  Camera,
+  Edit3,
+  Share2,
+  PlusCircle,
+  ImageIcon,
+  Users,
+  Grid,
+  MoreHorizontal,
+  ThumbsUp,
+  MessageSquare,
+  Globe,
 } from 'lucide-react';
 
 function ProfileContent() {
@@ -34,7 +48,7 @@ function ProfileContent() {
   const searchParams = useSearchParams();
   const { user, token, updateUser, isLoading: authLoading } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<'personal' | 'engineer' | 'security' | 'account'>('personal');
+  const [activeTab, setActiveTab] = useState<'timeline' | 'about' | 'photos' | 'connections' | 'security'>('timeline');
 
   // Personal Info Form State
   const [firstName, setFirstName] = useState('');
@@ -44,6 +58,11 @@ function ProfileContent() {
   const [district, setDistrict] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [bio, setBio] = useState('');
+  const [coverPhoto, setCoverPhoto] = useState(
+    'https://images.unsplash.com/photo-1541888946425-d0fbb18f15f6?auto=format&fit=crop&w=1200&q=80'
+  );
+  const [showEditCoverModal, setShowEditCoverModal] = useState(false);
+  const [newCoverInput, setNewCoverInput] = useState('');
 
   // Engineer Info Form State
   const [engineerTitle, setEngineerTitle] = useState('');
@@ -59,6 +78,10 @@ function ProfileContent() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
+  // Timeline posts authored by user
+  const [myPosts, setMyPosts] = useState<PostDto[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(false);
+
   // Alerts & Loading
   const [statusMessage, setStatusMessage] = useState<{
     type: 'success' | 'error';
@@ -71,14 +94,12 @@ function ProfileContent() {
   // Handle URL tab parameter
   useEffect(() => {
     const tabParam = searchParams.get('tab');
-    if (tabParam === 'engineer' && user?.role === UserRole.ENGINEER) {
-      setActiveTab('engineer');
-    } else if (tabParam === 'security') {
-      setActiveTab('security');
-    } else if (tabParam === 'account') {
-      setActiveTab('account');
-    }
-  }, [searchParams, user]);
+    if (tabParam === 'about') setActiveTab('about');
+    else if (tabParam === 'security') setActiveTab('security');
+    else if (tabParam === 'photos') setActiveTab('photos');
+    else if (tabParam === 'connections') setActiveTab('connections');
+    else if (tabParam === 'timeline') setActiveTab('timeline');
+  }, [searchParams]);
 
   // Populate state when user loads
   useEffect(() => {
@@ -95,6 +116,9 @@ function ProfileContent() {
       setDistrict(user.profile.district || '');
       setPhoneNumber(user.profile.phoneNumber || '');
       setBio(user.profile.bio || '');
+      if (user.profile.coverPhotoUrl) {
+        setCoverPhoto(user.profile.coverPhotoUrl);
+      }
     }
 
     if (user?.engineerProfile) {
@@ -107,6 +131,26 @@ function ProfileContent() {
       setSelectedSpecializations(user.engineerProfile.specializations || []);
     }
   }, [user, authLoading, router]);
+
+  // Load user's timeline posts
+  useEffect(() => {
+    if (!user) return;
+    const loadUserPosts = async () => {
+      setLoadingPosts(true);
+      try {
+        const res = await fetch(`${apiUrl}/posts?authorId=${user.id}`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data)) {
+          setMyPosts(data.data);
+        }
+      } catch {
+        // Handled silently
+      } finally {
+        setLoadingPosts(false);
+      }
+    };
+    loadUserPosts();
+  }, [user]);
 
   const handleSavePersonalInfo = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,6 +172,7 @@ function ProfileContent() {
           district,
           phoneNumber,
           bio,
+          coverPhotoUrl: coverPhoto,
         }),
       });
 
@@ -262,541 +307,705 @@ function ProfileContent() {
   if (authLoading || !user) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-blue"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-primary"></div>
       </div>
     );
   }
 
   const initials =
-    user.profile?.firstName && user.profile?.lastName
-      ? `${user.profile.firstName[0]}${user.profile.lastName[0]}`.toUpperCase()
-      : user.email.slice(0, 2).toUpperCase();
+    displayName.substring(0, 2).toUpperCase() ||
+    `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() ||
+    'BL';
+
+  const isEngineer = user.role === UserRole.ENGINEER;
+  const isVerifiedEngineer =
+    isEngineer && user.engineerProfile?.verificationStatus === VerificationStatus.VERIFIED;
+
+  // Site Photos collected from user's posts
+  const sitePhotos = myPosts.flatMap((p) => p.mediaUrls || []);
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-      {/* Top Banner Profile Summary */}
-      <div className="bg-gradient-to-r from-brand-navy via-[#14325c] to-brand-blue rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden mb-8">
-        <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 w-64 h-64 bg-brand-orange/10 rounded-full blur-3xl pointer-events-none" />
+    <div className="min-h-screen bg-brand-bg pb-12">
+      {/* ========================================================
+          1. FACEBOOK COVER PHOTO BANNER & OVERLAPPING AVATAR
+         ======================================================== */}
+      <div className="bg-brand-surface border-b border-brand-border shadow-sm">
+        <div className="max-w-6xl mx-auto">
+          {/* Cover Photo */}
+          <div className="relative h-60 sm:h-80 w-full overflow-hidden bg-brand-card">
+            <img
+              src={coverPhoto}
+              alt="Profile Cover"
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
 
-        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 relative z-10">
-          {/* Avatar Bubble */}
-          <div className="w-24 h-24 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-3xl font-extrabold text-white shadow-inner flex-shrink-0">
-            {initials}
+            {/* Edit Cover Photo Button */}
+            <button
+              onClick={() => setShowEditCoverModal(true)}
+              className="absolute bottom-4 right-4 bg-brand-surface/90 hover:bg-brand-surface backdrop-blur-md text-brand-text text-xs font-semibold px-3 py-2 rounded-xl shadow border border-brand-border flex items-center space-x-1.5 transition-all"
+            >
+              <Camera className="w-4 h-4 text-brand-primary" />
+              <span>Edit Cover Photo</span>
+            </button>
           </div>
 
-          <div className="flex-grow text-center sm:text-left">
-            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-2">
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-                {user.profile?.displayName || `${user.profile?.firstName} ${user.profile?.lastName}`}
-              </h1>
-              <span
-                className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${
-                  user.role === UserRole.ENGINEER
-                    ? 'bg-brand-orange text-white'
-                    : 'bg-white/20 text-white'
-                }`}
-              >
-                {user.role === UserRole.ENGINEER ? (
-                  <>
-                    <HardHat className="w-3.5 h-3.5" /> Engineer
-                  </>
-                ) : (
-                  <>
-                    <User className="w-3.5 h-3.5" /> Homeowner
-                  </>
-                )}
-              </span>
+          {/* Profile Header Details (Overlapping Facebook Avatar) */}
+          <div className="px-6 pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between -mt-16 sm:-mt-20 gap-4">
+              
+              {/* Avatar + Info */}
+              <div className="flex flex-col sm:flex-row items-center sm:items-end space-y-3 sm:space-y-0 sm:space-x-5 text-center sm:text-left">
+                {/* Circular Overlapping Avatar */}
+                <div className="relative">
+                  <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-full ring-4 ring-brand-surface overflow-hidden bg-brand-surface shadow-xl flex items-center justify-center text-3xl font-extrabold text-brand-primary bg-brand-primary/10">
+                    {user.profile?.avatarUrl ? (
+                      <img
+                        src={user.profile.avatarUrl}
+                        alt={displayName}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      initials
+                    )}
+                  </div>
+                  {/* Online presence green badge */}
+                  <span className="absolute bottom-2 right-2 w-5 h-5 rounded-full bg-emerald-500 ring-4 ring-brand-surface" />
+                </div>
 
-              {user.role === UserRole.ENGINEER && (
-                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-200 border border-emerald-400/30">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  {user.engineerProfile?.verificationStatus === VerificationStatus.VERIFIED
-                    ? 'Verified Professional'
-                    : 'Verification: Pending'}
-                </span>
+                {/* Name & Title */}
+                <div className="space-y-1 pb-2">
+                  <div className="flex items-center space-x-2 justify-center sm:justify-start">
+                    <h1 className="text-2xl sm:text-3xl font-extrabold text-brand-text">
+                      {displayName || `${firstName} ${lastName}`.trim() || 'BuildLink User'}
+                    </h1>
+                    {isVerifiedEngineer && (
+                      <span className="inline-flex items-center text-emerald-500" title="IESL Verified Engineer">
+                        <ShieldCheck className="w-6 h-6" />
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-xs sm:text-sm text-brand-muted font-medium">
+                    {isEngineer ? (
+                      <span className="text-brand-primary font-semibold">
+                        {engineerTitle || 'Certified Construction Engineer'}
+                      </span>
+                    ) : (
+                      <span>Homeowner & Builder</span>
+                    )}
+                    {district && <span> • 📍 {district}, Sri Lanka</span>}
+                  </p>
+
+                  <p className="text-xs text-brand-muted max-w-md">
+                    {bio || 'Building stronger homes & communities in Sri Lanka.'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-center sm:justify-end space-x-2.5 pb-2">
+                <button
+                  onClick={() => setActiveTab('about')}
+                  className="px-4 py-2 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-bold flex items-center space-x-1.5 shadow transition-colors"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Edit Profile</span>
+                </button>
+
+                <Link
+                  href="/feed"
+                  className="px-4 py-2 rounded-xl bg-brand-card hover:bg-brand-border/40 text-brand-text text-xs font-semibold border border-brand-border flex items-center space-x-1.5 transition-colors"
+                >
+                  <PlusCircle className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>Add Story</span>
+                </Link>
+
+                <button
+                  onClick={() => {
+                    navigator.clipboard?.writeText(window.location.href);
+                    alert('Profile link copied to clipboard!');
+                  }}
+                  className="p-2 rounded-xl bg-brand-card hover:bg-brand-border/40 text-brand-text border border-brand-border transition-colors"
+                  title="Share profile"
+                >
+                  <Share2 className="w-4 h-4" />
+                </button>
+              </div>
+
+            </div>
+
+            {/* Facebook Horizontal Navigation Tabs */}
+            <div className="mt-6 pt-2 border-t border-brand-border flex items-center space-x-1 sm:space-x-2 overflow-x-auto scrollbar-none text-xs font-semibold">
+              {[
+                { id: 'timeline', label: 'Timeline / Posts' },
+                { id: 'about', label: 'About & Credentials' },
+                { id: 'photos', label: `Photos (${sitePhotos.length})` },
+                { id: 'connections', label: 'Connections' },
+                { id: 'security', label: 'Security & Password' },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`px-4 py-2.5 rounded-lg whitespace-nowrap transition-all ${
+                    activeTab === tab.id
+                      ? 'bg-brand-primary/10 text-brand-primary border-b-2 border-brand-primary font-bold'
+                      : 'text-brand-muted hover:text-brand-text hover:bg-brand-card'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      {/* ========================================================
+          2. TAB CONTENTS
+         ======================================================== */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-6">
+        
+        {/* Alerts */}
+        {statusMessage && (
+          <div
+            className={`p-4 rounded-xl text-xs font-medium mb-6 flex items-center space-x-2 ${
+              statusMessage.type === 'success'
+                ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/30'
+                : 'bg-red-500/10 text-red-600 border border-red-500/30'
+            }`}
+          >
+            {statusMessage.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            )}
+            <span>{statusMessage.text}</span>
+          </div>
+        )}
+
+        {/* --- TAB 1: TIMELINE (Facebook Wall Layout) --- */}
+        {activeTab === 'timeline' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            {/* Left Intro Column */}
+            <div className="lg:col-span-5 space-y-5">
+              {/* Intro Card */}
+              <div className="bg-brand-surface border border-brand-border rounded-2xl p-5 shadow-sm space-y-4">
+                <h3 className="font-bold text-sm text-brand-text">Intro</h3>
+                <p className="text-xs text-brand-text/90 leading-relaxed">
+                  {bio || 'Welcome to my BuildLink profile. Sharing updates on active Sri Lankan construction projects.'}
+                </p>
+
+                <div className="space-y-2.5 pt-2 border-t border-brand-border/60 text-xs text-brand-muted">
+                  <div className="flex items-center space-x-2.5">
+                    <MapPin className="w-4 h-4 text-emerald-500" />
+                    <span>
+                      Lives in <strong className="text-brand-text">{city || 'Colombo'}, {district || 'Western Province'}</strong>
+                    </span>
+                  </div>
+
+                  {isEngineer && (
+                    <>
+                      <div className="flex items-center space-x-2.5">
+                        <HardHat className="w-4 h-4 text-amber-500" />
+                        <span>
+                          <strong className="text-brand-text">{engineerTitle || 'Engineer'}</strong> at BuildLink Pro
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-2.5">
+                        <Award className="w-4 h-4 text-brand-primary" />
+                        <span>
+                          {registrationBody || 'IESL'} Reg. #{registrationNumber || '104829'}
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-2.5">
+                        <DollarSign className="w-4 h-4 text-emerald-500" />
+                        <span>Consultation: LKR {consultationFee?.toLocaleString() || '3,500'}/hr</span>
+                      </div>
+                    </>
+                  )}
+
+                  <div className="flex items-center space-x-2.5">
+                    <Calendar className="w-4 h-4 text-cyan-500" />
+                    <span>
+                      Joined <strong className="text-brand-text">{new Date(user.createdAt).toLocaleDateString([], { month: 'long', year: 'numeric' })}</strong>
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setActiveTab('about')}
+                  className="w-full py-2 bg-brand-card hover:bg-brand-border/40 text-brand-text text-xs font-semibold rounded-xl border border-brand-border transition-colors"
+                >
+                  Edit Details
+                </button>
+              </div>
+
+              {/* Photos Widget */}
+              <div className="bg-brand-surface border border-brand-border rounded-2xl p-5 shadow-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-sm text-brand-text">Site Photos</h3>
+                  <button onClick={() => setActiveTab('photos')} className="text-xs text-brand-primary font-semibold hover:underline">
+                    See all
+                  </button>
+                </div>
+
+                {sitePhotos.length === 0 ? (
+                  <p className="text-xs text-brand-muted py-4 text-center">No photos uploaded yet.</p>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2">
+                    {sitePhotos.slice(0, 6).map((img, i) => (
+                      <div key={i} className="aspect-square rounded-xl overflow-hidden bg-brand-card">
+                        <img src={img} alt={`Photo ${i}`} className="w-full h-full object-cover" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right Stream Column (Posts authored by user) */}
+            <div className="lg:col-span-7 space-y-5">
+              {/* Mini Composer */}
+              <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 shadow-sm flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-full bg-brand-primary/20 text-brand-primary flex items-center justify-center font-bold text-xs flex-shrink-0">
+                  {initials}
+                </div>
+                <Link
+                  href="/feed"
+                  className="flex-1 bg-brand-bg hover:bg-brand-card px-4 py-2.5 rounded-full text-xs text-brand-muted border border-brand-border transition-colors truncate"
+                >
+                  Post an update on your timeline...
+                </Link>
+              </div>
+
+              {/* User Posts List */}
+              {loadingPosts ? (
+                <div className="space-y-4">
+                  {[1, 2].map((i) => (
+                    <div key={i} className="bg-brand-surface border border-brand-border rounded-2xl h-48 animate-pulse" />
+                  ))}
+                </div>
+              ) : myPosts.length === 0 ? (
+                <div className="bg-brand-surface border border-brand-border rounded-2xl p-12 text-center space-y-3">
+                  <Building className="w-10 h-10 text-brand-muted mx-auto" />
+                  <h4 className="font-bold text-sm text-brand-text">No posts on your timeline yet</h4>
+                  <p className="text-xs text-brand-muted">Share project milestones, site photos, or structural questions.</p>
+                  <Link
+                    href="/feed"
+                    className="inline-block px-4 py-2 rounded-xl bg-brand-primary text-white text-xs font-bold"
+                  >
+                    Go to Feed
+                  </Link>
+                </div>
+              ) : (
+                myPosts.map((post) => (
+                  <div
+                    key={post.id}
+                    className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-3 shadow-sm"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="w-9 h-9 rounded-full bg-brand-primary/20 text-brand-primary flex items-center justify-center font-bold text-xs">
+                        {initials}
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-brand-text">{post.author.displayName}</p>
+                        <p className="text-[10px] text-brand-muted">
+                          {new Date(post.createdAt).toLocaleDateString()} • {post.category}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <h4 className="font-bold text-sm text-brand-text">{post.title}</h4>
+                      <p className="text-xs text-brand-text/90 leading-relaxed">{post.content}</p>
+                    </div>
+
+                    {post.mediaUrls && post.mediaUrls.length > 0 && (
+                      <div className="rounded-xl overflow-hidden max-h-72 bg-black">
+                        <img
+                          src={post.mediaUrls[0]}
+                          alt={post.title}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    )}
+
+                    <div className="pt-2 border-t border-brand-border/60 flex items-center justify-between text-xs text-brand-muted">
+                      <span>👍 {post.likesCount} reactions</span>
+                      <span>💬 {post.commentsCount} comments</span>
+                    </div>
+                  </div>
+                ))
               )}
             </div>
 
-            <p className="text-blue-100 text-sm mb-3">{user.email}</p>
-
-            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 text-xs text-blue-200">
-              <span className="flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5 text-brand-orange" />
-                {user.profile?.city && user.profile?.district
-                  ? `${user.profile.city}, ${user.profile.district}`
-                  : 'Location not set'}
-              </span>
-              <span className="flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5 text-blue-300" />
-                Joined {new Date(user.createdAt).toLocaleDateString()}
-              </span>
-            </div>
           </div>
-        </div>
-      </div>
-
-      {/* Status Alerts */}
-      {statusMessage && (
-        <div
-          className={`mb-6 p-4 rounded-xl flex items-center gap-3 ${
-            statusMessage.type === 'success'
-              ? 'bg-emerald-50 text-emerald-900 border border-emerald-200'
-              : 'bg-red-50 text-red-900 border border-red-200'
-          }`}
-        >
-          {statusMessage.type === 'success' ? (
-            <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
-          ) : (
-            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
-          )}
-          <span className="text-sm font-medium">{statusMessage.text}</span>
-        </div>
-      )}
-
-      {/* Tab Navigation */}
-      <div className="flex border-b border-brand-border mb-8 overflow-x-auto gap-2">
-        <button
-          onClick={() => {
-            setActiveTab('personal');
-            setStatusMessage(null);
-          }}
-          className={`flex items-center gap-2 py-3 px-5 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
-            activeTab === 'personal'
-              ? 'border-brand-blue text-brand-blue bg-blue-50/50 rounded-t-lg'
-              : 'border-transparent text-brand-muted hover:text-brand-navy'
-          }`}
-        >
-          <User className="w-4 h-4" />
-          Personal Info
-        </button>
-
-        {user.role === UserRole.ENGINEER && (
-          <button
-            onClick={() => {
-              setActiveTab('engineer');
-              setStatusMessage(null);
-            }}
-            className={`flex items-center gap-2 py-3 px-5 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
-              activeTab === 'engineer'
-                ? 'border-brand-orange text-brand-orange bg-orange-50/50 rounded-t-lg'
-                : 'border-transparent text-brand-muted hover:text-brand-navy'
-            }`}
-          >
-            <HardHat className="w-4 h-4" />
-            Engineer Credentials
-          </button>
         )}
 
-        <button
-          onClick={() => {
-            setActiveTab('security');
-            setStatusMessage(null);
-          }}
-          className={`flex items-center gap-2 py-3 px-5 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
-            activeTab === 'security'
-              ? 'border-brand-blue text-brand-blue bg-blue-50/50 rounded-t-lg'
-              : 'border-transparent text-brand-muted hover:text-brand-navy'
-          }`}
-        >
-          <Lock className="w-4 h-4" />
-          Security & Password
-        </button>
-
-        <button
-          onClick={() => {
-            setActiveTab('account');
-            setStatusMessage(null);
-          }}
-          className={`flex items-center gap-2 py-3 px-5 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
-            activeTab === 'account'
-              ? 'border-brand-blue text-brand-blue bg-blue-50/50 rounded-t-lg'
-              : 'border-transparent text-brand-muted hover:text-brand-navy'
-          }`}
-        >
-          <FileCheck2 className="w-4 h-4" />
-          Account & Role
-        </button>
-      </div>
-
-      {/* Tab 1: Personal Info Form */}
-      {activeTab === 'personal' && (
-        <form onSubmit={handleSavePersonalInfo} className="space-y-6 bg-white p-6 sm:p-8 rounded-2xl border border-brand-border shadow-sm">
-          <div>
-            <h2 className="text-lg font-bold text-brand-navy">Personal Profile</h2>
-            <p className="text-xs text-brand-muted mt-0.5">
-              Manage your personal information visible on community questions and comments.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <div>
-              <label className="block text-xs font-semibold text-brand-navy mb-1">First Name</label>
-              <input
-                type="text"
-                required
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-lg border border-brand-border focus:ring-2 focus:ring-brand-blue focus:outline-none text-sm text-brand-navy"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-brand-navy mb-1">Last Name</label>
-              <input
-                type="text"
-                required
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-lg border border-brand-border focus:ring-2 focus:ring-brand-blue focus:outline-none text-sm text-brand-navy"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-brand-navy mb-1">Display Name (Public Handle)</label>
-            <input
-              type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="e.g. Sunil Perera"
-              className="w-full px-3.5 py-2.5 rounded-lg border border-brand-border focus:ring-2 focus:ring-brand-blue focus:outline-none text-sm text-brand-navy"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <div>
-              <label className="block text-xs font-semibold text-brand-navy mb-1">City / Town</label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  placeholder="e.g. Kandy, Battaramulla"
-                  className="w-full pl-9 pr-3.5 py-2.5 rounded-lg border border-brand-border focus:ring-2 focus:ring-brand-blue focus:outline-none text-sm text-brand-navy"
-                />
-                <Building className="w-4 h-4 text-brand-muted absolute left-3 top-3" />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-brand-navy mb-1">District</label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={district}
-                  onChange={(e) => setDistrict(e.target.value)}
-                  placeholder="e.g. Colombo, Gampaha"
-                  className="w-full pl-9 pr-3.5 py-2.5 rounded-lg border border-brand-border focus:ring-2 focus:ring-brand-blue focus:outline-none text-sm text-brand-navy"
-                />
-                <MapPin className="w-4 h-4 text-brand-muted absolute left-3 top-3" />
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-brand-navy mb-1">Phone Number (Optional)</label>
-            <div className="relative">
-              <input
-                type="tel"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                placeholder="+94 77 123 4567"
-                className="w-full pl-9 pr-3.5 py-2.5 rounded-lg border border-brand-border focus:ring-2 focus:ring-brand-blue focus:outline-none text-sm text-brand-navy"
-              />
-              <Phone className="w-4 h-4 text-brand-muted absolute left-3 top-3" />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-brand-navy mb-1">Bio & Experience Summary</label>
-            <textarea
-              rows={4}
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              placeholder="Tell other builders and homeowners about your building interests or construction background..."
-              className="w-full px-3.5 py-2.5 rounded-lg border border-brand-border focus:ring-2 focus:ring-brand-blue focus:outline-none text-sm text-brand-navy"
-            />
-          </div>
-
-          <div className="pt-4 border-t border-brand-border flex justify-end">
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="btn-primary inline-flex items-center gap-2"
-            >
-              <Save className="w-4 h-4" />
-              {isSaving ? 'Saving Changes...' : 'Save Personal Profile'}
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* Tab 2: Professional Engineer Credentials Form */}
-      {activeTab === 'engineer' && user.role === UserRole.ENGINEER && (
-        <form onSubmit={handleSaveEngineerInfo} className="space-y-6 bg-white p-6 sm:p-8 rounded-2xl border border-brand-border shadow-sm">
-          <div>
-            <h2 className="text-lg font-bold text-brand-navy flex items-center gap-2">
-              <HardHat className="w-5 h-5 text-brand-orange" />
-              Engineer Professional Details
-            </h2>
-            <p className="text-xs text-brand-muted mt-0.5">
-              These details are showcased to homeowners seeking consultations and structural advice.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <div>
-              <label className="block text-xs font-semibold text-brand-navy mb-1">Professional Title</label>
-              <div className="relative">
-                <input
-                  type="text"
-                  required
-                  value={engineerTitle}
-                  onChange={(e) => setEngineerTitle(e.target.value)}
-                  placeholder="e.g. Chartered Structural Engineer"
-                  className="w-full pl-9 pr-3.5 py-2.5 rounded-lg border border-brand-border focus:ring-2 focus:ring-brand-blue focus:outline-none text-sm text-brand-navy"
-                />
-                <Briefcase className="w-4 h-4 text-brand-muted absolute left-3 top-3" />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-brand-navy mb-1">Years of Practical Experience</label>
-              <input
-                type="number"
-                min={0}
-                max={60}
-                value={yearsOfExperience}
-                onChange={(e) => setYearsOfExperience(Number(e.target.value))}
-                className="w-full px-3.5 py-2.5 rounded-lg border border-brand-border focus:ring-2 focus:ring-brand-blue focus:outline-none text-sm text-brand-navy"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <div>
-              <label className="block text-xs font-semibold text-brand-navy mb-1">Professional Body</label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={registrationBody}
-                  onChange={(e) => setRegistrationBody(e.target.value)}
-                  placeholder="e.g. IESL, SOE, CIBSE"
-                  className="w-full pl-9 pr-3.5 py-2.5 rounded-lg border border-brand-border focus:ring-2 focus:ring-brand-blue focus:outline-none text-sm text-brand-navy"
-                />
-                <Award className="w-4 h-4 text-brand-muted absolute left-3 top-3" />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-brand-navy mb-1">Registration / License Number</label>
-              <input
-                type="text"
-                value={registrationNumber}
-                onChange={(e) => setRegistrationNumber(e.target.value)}
-                placeholder="e.g. M-7821"
-                className="w-full px-3.5 py-2.5 rounded-lg border border-brand-border focus:ring-2 focus:ring-brand-blue focus:outline-none text-sm text-brand-navy"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 items-center">
-            <div>
-              <label className="block text-xs font-semibold text-brand-navy mb-1">
-                Consultation Fee (LKR)
-              </label>
-              <div className="relative">
-                <input
-                  type="number"
-                  min={0}
-                  step={500}
-                  value={consultationFee}
-                  onChange={(e) => setConsultationFee(Number(e.target.value))}
-                  placeholder="e.g. 5000"
-                  className="w-full pl-9 pr-3.5 py-2.5 rounded-lg border border-brand-border focus:ring-2 focus:ring-brand-blue focus:outline-none text-sm text-brand-navy"
-                />
-                <DollarSign className="w-4 h-4 text-brand-muted absolute left-3 top-3" />
-              </div>
-            </div>
-
-            <div className="pt-5">
-              <label className="flex items-center gap-3 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={availableForConsultation}
-                  onChange={(e) => setAvailableForConsultation(e.target.checked)}
-                  className="w-5 h-5 text-brand-blue rounded border-brand-border focus:ring-brand-blue cursor-pointer"
-                />
+        {/* --- TAB 2: ABOUT & CREDENTIALS --- */}
+        {activeTab === 'about' && (
+          <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 sm:p-8 shadow-sm space-y-8">
+            {/* Personal Details */}
+            <form onSubmit={handleSavePersonalInfo} className="space-y-5">
+              <div className="border-b border-brand-border/60 pb-3 flex items-center justify-between">
                 <div>
-                  <span className="text-sm font-semibold text-brand-navy">Available for Consultations</span>
-                  <p className="text-xs text-brand-muted">Allow clients to book audio/video or onsite sessions</p>
+                  <h3 className="font-bold text-base text-brand-text">Personal Profile Details</h3>
+                  <p className="text-xs text-brand-muted">Update your public identity on BuildLink.</p>
                 </div>
-              </label>
-            </div>
-          </div>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="px-4 py-2 bg-brand-primary text-white text-xs font-bold rounded-xl shadow disabled:opacity-40"
+                >
+                  {isSaving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-brand-navy mb-2">
-              Areas of Specialization (Select all that apply)
-            </label>
-            <div className="flex flex-wrap gap-2 max-h-56 overflow-y-auto p-3 bg-slate-50 rounded-xl border border-brand-border">
-              {CONSTRUCTION_CATEGORIES.map((cat) => {
-                const isSelected = selectedSpecializations.includes(cat);
-                return (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => toggleSpecialization(cat)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                      isSelected
-                        ? 'bg-brand-orange text-white shadow-sm'
-                        : 'bg-white text-brand-text border border-brand-border hover:border-brand-orange'
-                    }`}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                <div>
+                  <label className="block font-bold text-brand-muted uppercase mb-1">First Name</label>
+                  <input
+                    type="text"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    className="w-full bg-brand-bg text-brand-text rounded-xl px-3.5 py-2 border border-brand-border focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-brand-muted uppercase mb-1">Last Name</label>
+                  <input
+                    type="text"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    className="w-full bg-brand-bg text-brand-text rounded-xl px-3.5 py-2 border border-brand-border focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-brand-muted uppercase mb-1">Display Name</label>
+                  <input
+                    type="text"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    className="w-full bg-brand-bg text-brand-text rounded-xl px-3.5 py-2 border border-brand-border focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-brand-muted uppercase mb-1">District</label>
+                  <select
+                    value={district}
+                    onChange={(e) => setDistrict(e.target.value)}
+                    className="w-full bg-brand-bg text-brand-text rounded-xl px-3.5 py-2 border border-brand-border focus:outline-none"
                   >
-                    {cat}
+                    <option value="">Select District</option>
+                    {SRI_LANKAN_DISTRICTS.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="text-xs">
+                <label className="block font-bold text-brand-muted uppercase mb-1">Bio / Headline</label>
+                <textarea
+                  rows={3}
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value)}
+                  className="w-full bg-brand-bg text-brand-text rounded-xl p-3 border border-brand-border focus:outline-none"
+                />
+              </div>
+            </form>
+
+            {/* Engineer Credentials (If Engineer Role) */}
+            {isEngineer && (
+              <form onSubmit={handleSaveEngineerInfo} className="space-y-5 pt-6 border-t border-brand-border">
+                <div className="border-b border-brand-border/60 pb-3 flex items-center justify-between">
+                  <div>
+                    <h3 className="font-bold text-base text-brand-text">Professional Engineer Credentials</h3>
+                    <p className="text-xs text-brand-muted">License, IESL affiliation, and technical rates.</p>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isSaving}
+                    className="px-4 py-2 bg-brand-primary text-white text-xs font-bold rounded-xl shadow disabled:opacity-40"
+                  >
+                    {isSaving ? 'Saving...' : 'Save Credentials'}
                   </button>
-                );
-              })}
-            </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <label className="block font-bold text-brand-muted uppercase mb-1">Professional Title</label>
+                    <input
+                      type="text"
+                      value={engineerTitle}
+                      onChange={(e) => setEngineerTitle(e.target.value)}
+                      placeholder="e.g., Chartered Structural Engineer"
+                      className="w-full bg-brand-bg text-brand-text rounded-xl px-3.5 py-2 border border-brand-border focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-brand-muted uppercase mb-1">Registration Body</label>
+                    <input
+                      type="text"
+                      value={registrationBody}
+                      onChange={(e) => setRegistrationBody(e.target.value)}
+                      placeholder="IESL / CIBSE / SOE"
+                      className="w-full bg-brand-bg text-brand-text rounded-xl px-3.5 py-2 border border-brand-border focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-brand-muted uppercase mb-1">Registration Number</label>
+                    <input
+                      type="text"
+                      value={registrationNumber}
+                      onChange={(e) => setRegistrationNumber(e.target.value)}
+                      className="w-full bg-brand-bg text-brand-text rounded-xl px-3.5 py-2 border border-brand-border focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-brand-muted uppercase mb-1">Consultation Hourly Rate (LKR)</label>
+                    <input
+                      type="number"
+                      value={consultationFee}
+                      onChange={(e) => setConsultationFee(Number(e.target.value))}
+                      className="w-full bg-brand-bg text-brand-text rounded-xl px-3.5 py-2 border border-brand-border focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Specializations Pills */}
+                <div className="space-y-2 text-xs">
+                  <label className="block font-bold text-brand-muted uppercase">Engineering Specializations</label>
+                  <div className="flex flex-wrap gap-2">
+                    {CONSTRUCTION_CATEGORIES.map((cat) => {
+                      const selected = selectedSpecializations.includes(cat);
+                      return (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => toggleSpecialization(cat)}
+                          className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                            selected
+                              ? 'bg-brand-primary text-white'
+                              : 'bg-brand-bg text-brand-muted hover:text-brand-text border border-brand-border'
+                          }`}
+                        >
+                          {selected ? '✓ ' : '+ '}
+                          {cat}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </form>
+            )}
           </div>
+        )}
 
-          <div className="pt-4 border-t border-brand-border flex justify-end">
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="btn-accent inline-flex items-center gap-2"
-            >
-              <Save className="w-4 h-4" />
-              {isSaving ? 'Updating...' : 'Save Engineer Credentials'}
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* Tab 3: Security & Password */}
-      {activeTab === 'security' && (
-        <form onSubmit={handleChangePassword} className="space-y-6 bg-white p-6 sm:p-8 rounded-2xl border border-brand-border shadow-sm max-w-xl">
-          <div>
-            <h2 className="text-lg font-bold text-brand-navy flex items-center gap-2">
-              <KeyRound className="w-5 h-5 text-brand-blue" />
-              Change Password
-            </h2>
-            <p className="text-xs text-brand-muted mt-0.5">
-              Ensure your account stays protected with a strong, distinct password.
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-brand-navy mb-1">Current Password</label>
-            <input
-              type="password"
-              required
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-lg border border-brand-border focus:ring-2 focus:ring-brand-blue focus:outline-none text-sm text-brand-navy"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-brand-navy mb-1">New Password (Min 8 Characters)</label>
-            <input
-              type="password"
-              required
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-lg border border-brand-border focus:ring-2 focus:ring-brand-blue focus:outline-none text-sm text-brand-navy"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-brand-navy mb-1">Confirm New Password</label>
-            <input
-              type="password"
-              required
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-lg border border-brand-border focus:ring-2 focus:ring-brand-blue focus:outline-none text-sm text-brand-navy"
-            />
-          </div>
-
-          <div className="pt-4 border-t border-brand-border flex justify-end">
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="btn-primary inline-flex items-center gap-2"
-            >
-              <Save className="w-4 h-4" />
-              {isSaving ? 'Updating Password...' : 'Update Password'}
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* Tab 4: Account & Role Overview */}
-      {activeTab === 'account' && (
-        <div className="bg-white p-6 sm:p-8 rounded-2xl border border-brand-border shadow-sm space-y-6">
-          <div>
-            <h2 className="text-lg font-bold text-brand-navy">Account Details & Verification Status</h2>
-            <p className="text-xs text-brand-muted mt-0.5">
-              Review your BuildLink role level and identity status.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 rounded-xl border border-brand-border bg-slate-50/70">
-              <span className="text-xs font-semibold text-brand-muted uppercase">Assigned Platform Role</span>
-              <p className="text-base font-bold text-brand-navy mt-1 flex items-center gap-2">
-                {user.role === UserRole.ENGINEER ? (
-                  <>
-                    <HardHat className="w-4 h-4 text-brand-orange" /> Professional Engineer
-                  </>
-                ) : (
-                  <>
-                    <User className="w-4 h-4 text-brand-blue" /> Homeowner / Builder
-                  </>
-                )}
-              </p>
-            </div>
-
-            <div className="p-4 rounded-xl border border-brand-border bg-slate-50/70">
-              <span className="text-xs font-semibold text-brand-muted uppercase">Account Status</span>
-              <p className="text-base font-bold text-emerald-600 mt-1 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4" /> {user.status}
-              </p>
-            </div>
-
-            <div className="p-4 rounded-xl border border-brand-border bg-slate-50/70">
-              <span className="text-xs font-semibold text-brand-muted uppercase">User ID</span>
-              <p className="text-xs font-mono text-brand-navy mt-1 truncate">{user.id}</p>
-            </div>
-
-            <div className="p-4 rounded-xl border border-brand-border bg-slate-50/70">
-              <span className="text-xs font-semibold text-brand-muted uppercase">Registered On</span>
-              <p className="text-sm font-semibold text-brand-navy mt-1">
-                {new Date(user.createdAt).toLocaleDateString()}
-              </p>
-            </div>
-          </div>
-
-          {user.role === UserRole.ENGINEER && (
-            <div className="p-5 rounded-2xl bg-amber-50/60 border border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        {/* --- TAB 3: PHOTOS GALLERY --- */}
+        {activeTab === 'photos' && (
+          <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 sm:p-8 shadow-sm space-y-5">
+            <div className="flex items-center justify-between">
               <div>
-                <h4 className="text-sm font-bold text-amber-900 flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-brand-orange" />
-                  Phase 3 Credential Verification
-                </h4>
-                <p className="text-xs text-amber-800 mt-1 max-w-xl">
-                  Upload your chartered engineering credentials, degree transcript, or registration card to receive the verified badge in the professional directory.
-                </p>
+                <h3 className="font-bold text-base text-brand-text">Site Photos & Technical Blueprints</h3>
+                <p className="text-xs text-brand-muted">All visual records posted across your timeline & milestones.</p>
+              </div>
+            </div>
+
+            {sitePhotos.length === 0 ? (
+              <div className="p-12 text-center text-xs text-brand-muted space-y-2">
+                <ImageIcon className="w-10 h-10 text-brand-muted mx-auto" />
+                <p>No photos uploaded yet. Attach images to your feed posts to populate your site gallery.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                {sitePhotos.map((img, i) => (
+                  <div key={i} className="aspect-square rounded-2xl overflow-hidden bg-brand-card shadow group relative">
+                    <img src={img} alt={`Gallery ${i}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* --- TAB 4: CONNECTIONS & FRIENDS --- */}
+        {activeTab === 'connections' && (
+          <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-base text-brand-text">Connected Engineers & Builders</h3>
+                <p className="text-xs text-brand-muted">Your professional network for direct collaboration.</p>
               </div>
               <Link
-                href="/verify"
-                className="btn-accent text-xs whitespace-nowrap"
+                href="/engineers"
+                className="px-4 py-2 bg-brand-primary text-white text-xs font-bold rounded-xl shadow"
               >
-                Submit Documents
+                Find Engineers
               </Link>
             </div>
-          )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              {[
+                {
+                  name: 'Eng. Kasun Perera',
+                  title: 'Structural Engineer (IESL)',
+                  district: 'Kandy',
+                  avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+                },
+                {
+                  name: 'Arch. Nimali Silva',
+                  title: 'Chartered Architect',
+                  district: 'Galle',
+                  avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=150&q=80',
+                },
+                {
+                  name: 'Eng. Ruwan Jayawardena',
+                  title: 'NBRO Geotechnical Consultant',
+                  district: 'Nuwara Eliya',
+                  avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80',
+                },
+              ].map((conn, i) => (
+                <div key={i} className="bg-brand-bg border border-brand-border rounded-xl p-4 flex items-center space-x-3">
+                  <img src={conn.avatar} alt={conn.name} className="w-12 h-12 rounded-full object-cover ring-2 ring-brand-border" />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-xs text-brand-text truncate">{conn.name}</p>
+                    <p className="text-[10px] text-brand-muted truncate">{conn.title}</p>
+                    <p className="text-[9px] text-emerald-500 font-semibold">📍 {conn.district}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* --- TAB 5: SECURITY & PASSWORD --- */}
+        {activeTab === 'security' && (
+          <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 sm:p-8 shadow-sm space-y-6 max-w-xl">
+            <div>
+              <h3 className="font-bold text-base text-brand-text">Change Password</h3>
+              <p className="text-xs text-brand-muted">Secure your BuildLink account with a strong password.</p>
+            </div>
+
+            <form onSubmit={handleChangePassword} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-brand-muted uppercase mb-1">Current Password</label>
+                <input
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  className="w-full bg-brand-bg text-brand-text rounded-xl px-3.5 py-2 border border-brand-border focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-brand-muted uppercase mb-1">New Password</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full bg-brand-bg text-brand-text rounded-xl px-3.5 py-2 border border-brand-border focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-brand-muted uppercase mb-1">Confirm New Password</label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full bg-brand-bg text-brand-text rounded-xl px-3.5 py-2 border border-brand-border focus:outline-none"
+                  required
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="px-5 py-2.5 rounded-xl bg-brand-primary text-white font-bold shadow disabled:opacity-40"
+              >
+                {isSaving ? 'Updating...' : 'Update Password'}
+              </button>
+            </form>
+          </div>
+        )}
+
+      </div>
+
+      {/* ========================================================
+          EDIT COVER PHOTO MODAL
+         ======================================================== */}
+      {showEditCoverModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white text-slate-900 border border-slate-200 rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-4 text-xs">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <h3 className="font-bold text-sm text-slate-900">Update Profile Cover Photo</h3>
+              <button
+                type="button"
+                onClick={() => setShowEditCoverModal(false)}
+                className="text-slate-400 hover:text-slate-700"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-slate-600">Enter a direct image URL or choose one of our construction presets.</p>
+
+            <input
+              type="url"
+              value={newCoverInput}
+              onChange={(e) => setNewCoverInput(e.target.value)}
+              placeholder="https://images.unsplash.com/... or paste image URL"
+              className="w-full bg-slate-50 focus:bg-white text-slate-900 placeholder:text-slate-400 rounded-xl px-3.5 py-2.5 border border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-blue"
+            />
+
+            <div className="space-y-2">
+              <span className="font-bold text-slate-700">Preset Construction Covers:</span>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  'https://images.unsplash.com/photo-1541888946425-d0fbb18f15f6?auto=format&fit=crop&w=600&q=80',
+                  'https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=600&q=80',
+                  'https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=600&q=80',
+                ].map((preset, idx) => (
+                  <img
+                    key={idx}
+                    src={preset}
+                    alt="Preset"
+                    onClick={() => setNewCoverInput(preset)}
+                    className="h-16 w-full object-cover rounded-lg border border-slate-200 hover:ring-2 hover:ring-brand-blue cursor-pointer"
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-200 flex justify-end space-x-2">
+              <button
+                type="button"
+                onClick={() => setShowEditCoverModal(false)}
+                className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (newCoverInput.trim()) {
+                    setCoverPhoto(newCoverInput.trim());
+                  }
+                  setShowEditCoverModal(false);
+                }}
+                className="px-5 py-2.5 rounded-xl bg-brand-blue hover:bg-blue-700 text-white font-bold shadow-md"
+              >
+                Apply Cover Photo
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -805,15 +1014,8 @@ function ProfileContent() {
 
 export default function ProfilePage() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-[60vh] flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-blue"></div>
-        </div>
-      }
-    >
+    <Suspense fallback={<div className="p-8 text-center text-xs text-brand-muted">Loading profile...</div>}>
       <ProfileContent />
     </Suspense>
   );
 }
-

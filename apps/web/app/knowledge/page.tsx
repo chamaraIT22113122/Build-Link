@@ -93,7 +93,7 @@ function KnowledgeContent() {
       {/* Hero Header */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-brand-navy via-[#102d52] to-brand-blue text-white p-8 sm:p-10 shadow-xl">
         <div className="relative z-10 max-w-3xl">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/10 backdrop-blur-md text-brand-orange text-xs font-bold uppercase tracking-wider mb-3">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 border border-white/20 text-amber-300 text-xs font-bold uppercase tracking-wider mb-3 shadow-xs">
             <Award className="w-4 h-4 text-brand-orange" />
             Official Sri Lankan Construction Standards
           </div>
