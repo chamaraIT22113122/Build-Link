@@ -11,5 +11,7 @@ export * from './AuditLog';
 export * from './PostLike';
 export * from './Project';
 export * from './ProjectMilestone';
+export * from './ConsultationMessage';
+export * from './EngineerReview';
 
 

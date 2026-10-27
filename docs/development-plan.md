@@ -186,13 +186,36 @@
 
 ---
 
-## Phase 9: Real-time Consultations, In-app Messaging & Review Ratings (Next Phase)
-1. **Consultation Messaging & Reviews API**:
-   - `ConsultationMessage` entity & endpoints: In-app chat between homeowner and assigned engineer.
-   - `EngineerReview` entity & rating calculation: Homeowner reviews engineer upon consultation completion (1-5 stars, review text, verified client badge).
-2. **Interactive UI Portals**:
-   - Consultation messaging room & direct engineer chat.
-   - Review submission modal & verified testimonials on engineer public profile.
+## Phase 9 Deliverables (Completed)
+1. **Domain Model & Entities**:
+   - `ConsultationMessage` entity: In-app direct communication thread between client (`clientId`) and assigned engineer (`engineer.userId`), tracking content, timestamp, attachments, and read receipts.
+   - `EngineerReview` entity: Verified client reviews storing 1-5 star numerical ratings, detailed structural/quality review feedback, verified client inspection badges, and consultation linkage.
+   - Automatic aggregate rating recalculation: recalculates `ratingAverage` and `ratingCount` on `EngineerProfile` dynamically whenever verified reviews are saved.
+   - Dual-mode support for in-memory and TypeORM MS SQL Server queries with comprehensive relational joins.
+2. **Consultation Messaging & Reviews API**:
+   - `POST /api/v1/engineers/consultations/:id/messages`: Authenticated endpoint for clients and engineers to exchange messages and blueprints.
+   - `GET /api/v1/engineers/consultations/:id/messages`: Chronological message thread retrieval for consultation participants.
+   - `POST /api/v1/engineers/:id/reviews`: Authenticated endpoint for clients to submit 1-5 star reviews with verification badges.
+   - `GET /api/v1/engineers/:id/reviews`: Public directory endpoint returning all audited reviews for the target engineer.
+3. **Interactive Frontend Interfaces**:
+   - `/engineers/[id]`: Enhanced with an interactive **Verified Client Reviews & Inspections** section, star rating breakdown, verified client badges, and date stamps.
+   - "Rate & Review" modal with 1-5 star interactive picker and verification guarantee.
+   - In-app **Consultation Chat Drawer**: Direct messaging interface for active consultations with live chat bubbles, timestamps, and blueprint attachment previews.
+4. **Comprehensive Automated Test Suite**:
+   - 10 new integration tests in `apps/api/src/tests/reviews.test.ts` (bringing total test suite to 72 passing tests across 9 test suites).
+   - Production Next.js build validated with all 15 routes statically and dynamically generated with zero warnings.
+
+---
+
+## Phase 10: Production Readiness, Security Hardening & End-to-End System Polish
+1. **Security & Performance Hardening**:
+   - Rate limiting middleware (Express rate-limit on auth, messaging, and post endpoints).
+   - Helmet HTTP headers and strict CORS origin validation.
+   - Centralized error handling and structured JSON logging.
+2. **End-to-End Documentation & Verification**:
+   - Comprehensive API swagger/markdown documentation updates.
+   - Deployment checklist and environment validation scripts.
+
 
 
 

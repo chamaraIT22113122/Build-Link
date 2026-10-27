@@ -557,6 +557,42 @@ export interface KnowledgeSearchQueryDto {
   limit?: number;
 }
 
+// Phase 9: In-App Messaging & Review Ratings DTOs
+export interface ConsultationMessageDto {
+  id: string;
+  consultationId: string;
+  senderId: string;
+  senderName?: string;
+  senderRole?: UserRole;
+  content: string;
+  attachments?: string[];
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface CreateConsultationMessageDto {
+  content: string;
+  attachments?: string[];
+}
+
+export interface EngineerReviewDto {
+  id: string;
+  engineerProfileId: string;
+  clientId: string;
+  clientName?: string;
+  rating: number;
+  reviewText: string;
+  isVerifiedClient: boolean;
+  createdAt: string;
+}
+
+export interface CreateEngineerReviewDto {
+  rating: number;
+  reviewText: string;
+  consultationId?: string;
+}
+
+
 
 
 

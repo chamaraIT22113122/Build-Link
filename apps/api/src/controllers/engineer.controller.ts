@@ -136,4 +136,111 @@ export class EngineerController {
       sendError(res, 'INTERNAL_ERROR', err.message, 500);
     }
   }
+
+  public static async addConsultationMessage(req: Request, res: Response): Promise<void> {
+    try {
+      const senderId = (req as any).user?.id;
+      if (!senderId) {
+        sendError(res, 'UNAUTHORIZED', 'Authentication required', 401);
+        return;
+      }
+
+      const { id: consultationId } = req.params;
+      const { content, attachments } = req.body;
+
+      if (!content || typeof content !== 'string' || content.trim().length === 0) {
+        sendError(res, 'VALIDATION_ERROR', 'Message content is required', 400);
+        return;
+      }
+
+      const message = await EngineerService.addConsultationMessage(
+        senderId,
+        consultationId,
+        content.trim(),
+        attachments
+      );
+
+      sendSuccess(res, message, 201);
+    } catch (err: any) {
+      if (err.message === 'USER_NOT_FOUND') {
+        sendError(res, 'USER_NOT_FOUND', 'Sender not found', 404);
+        return;
+      }
+      sendError(res, 'INTERNAL_ERROR', err.message, 500);
+    }
+  }
+
+  public static async getConsultationMessages(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        sendError(res, 'UNAUTHORIZED', 'Authentication required', 401);
+        return;
+      }
+
+      const { id: consultationId } = req.params;
+      const messages = await EngineerService.listConsultationMessages(userId, consultationId);
+      sendSuccess(res, messages, 200);
+    } catch (err: any) {
+      sendError(res, 'INTERNAL_ERROR', err.message, 500);
+    }
+  }
+
+  public static async addEngineerReview(req: Request, res: Response): Promise<void> {
+    try {
+      const clientId = (req as any).user?.id;
+      if (!clientId) {
+        sendError(res, 'UNAUTHORIZED', 'Authentication required', 401);
+        return;
+      }
+
+      const { id: engineerProfileId } = req.params;
+      const { rating, reviewText, consultationId } = req.body;
+
+      if (!rating || typeof rating !== 'number' || rating < 1 || rating > 5) {
+        sendError(res, 'VALIDATION_ERROR', 'Rating must be an integer between 1 and 5', 400);
+        return;
+      }
+
+      if (!reviewText || typeof reviewText !== 'string' || reviewText.trim().length < 5) {
+        sendError(res, 'VALIDATION_ERROR', 'Review text must be at least 5 characters', 400);
+        return;
+      }
+
+      const review = await EngineerService.addEngineerReview(
+        clientId,
+        engineerProfileId,
+        Math.round(rating),
+        reviewText.trim(),
+        consultationId
+      );
+
+      sendSuccess(res, review, 201);
+    } catch (err: any) {
+      if (err.message === 'ENGINEER_NOT_FOUND') {
+        sendError(res, 'NOT_FOUND', 'Engineer profile not found', 404);
+        return;
+      }
+      if (err.message === 'INVALID_RATING') {
+        sendError(res, 'VALIDATION_ERROR', 'Rating must be between 1 and 5', 400);
+        return;
+      }
+      sendError(res, 'INTERNAL_ERROR', err.message, 500);
+    }
+  }
+
+  public static async getEngineerReviews(req: Request, res: Response): Promise<void> {
+    try {
+      const { id: engineerProfileId } = req.params;
+      const reviews = await EngineerService.listEngineerReviews(engineerProfileId);
+      sendSuccess(res, reviews, 200);
+    } catch (err: any) {
+      if (err.message === 'ENGINEER_NOT_FOUND') {
+        sendError(res, 'NOT_FOUND', 'Engineer profile not found', 404);
+        return;
+      }
+      sendError(res, 'INTERNAL_ERROR', err.message, 500);
+    }
+  }
 }
+
