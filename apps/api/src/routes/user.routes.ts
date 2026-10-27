@@ -6,6 +6,7 @@ import { UserRole } from '@buildlink/shared';
 const router = Router();
 
 router.get('/profile', authenticateJwt, UserController.getProfile);
+router.get('/:id', UserController.getUserById);
 router.put('/profile', authenticateJwt, UserController.updateProfile);
 router.put(
   '/engineer-profile',

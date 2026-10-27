@@ -31,6 +31,30 @@ export class UserController {
     }
   }
 
+  public static async getUserById(req: Request, res: Response): Promise<Response> {
+    try {
+      const userId = req.params.id;
+      if (!userId) {
+        return sendError(res, 'BAD_REQUEST', 'User ID is required.', 400);
+      }
+
+      const user = await UserService.findById(userId);
+      if (!user) {
+        return sendError(res, 'NOT_FOUND', 'User not found.', 404);
+      }
+
+      return sendSuccess(res, UserService.toUserDto(user), 200);
+    } catch (err: unknown) {
+      return sendError(
+        res,
+        'INTERNAL_SERVER_ERROR',
+        'Failed to fetch user profile.',
+        500,
+        err instanceof Error ? err.message : undefined
+      );
+    }
+  }
+
   public static async updateProfile(req: Request, res: Response): Promise<Response> {
     try {
       const userId = req.user?.id;

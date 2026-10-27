@@ -3,6 +3,7 @@ import '../styles/globals.css';
 import { Navbar } from '../components/Navbar';
 import { Footer } from '../components/Footer';
 import { DockedMessenger } from '../components/DockedMessenger';
+import { MobileBottomNav } from '../components/MobileBottomNav';
 import { AuthProvider } from '../context/AuthContext';
 
 export const metadata: Metadata = {
@@ -31,11 +32,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="bg-brand-bg text-brand-text min-h-screen flex flex-col antialiased">
+      <body className="bg-brand-bg text-brand-text min-h-screen flex flex-col antialiased pb-16 sm:pb-0">
         <AuthProvider>
           <Navbar />
           <main className="flex-grow">{children}</main>
           <DockedMessenger />
+          <MobileBottomNav />
           <Footer />
         </AuthProvider>
       </body>

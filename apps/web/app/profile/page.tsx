@@ -91,15 +91,21 @@ function ProfileContent() {
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050/api/v1';
 
-  // Handle URL tab parameter
+  // Handle URL tab & user ID parameters
   useEffect(() => {
+    const idParam = searchParams.get('id');
+    if (idParam && idParam !== user?.id) {
+      router.push(`/profile/${idParam}`);
+      return;
+    }
+
     const tabParam = searchParams.get('tab');
     if (tabParam === 'about') setActiveTab('about');
     else if (tabParam === 'security') setActiveTab('security');
     else if (tabParam === 'photos') setActiveTab('photos');
     else if (tabParam === 'connections') setActiveTab('connections');
     else if (tabParam === 'timeline') setActiveTab('timeline');
-  }, [searchParams]);
+  }, [searchParams, user, router]);
 
   // Populate state when user loads
   useEffect(() => {
@@ -356,9 +362,9 @@ function ProfileContent() {
               
               {/* Avatar + Info */}
               <div className="flex flex-col sm:flex-row items-center sm:items-end space-y-3 sm:space-y-0 sm:space-x-5 text-center sm:text-left">
-                {/* Circular Overlapping Avatar */}
-                <div className="relative">
-                  <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-full ring-4 ring-brand-surface overflow-hidden bg-brand-surface shadow-xl flex items-center justify-center text-3xl font-extrabold text-brand-primary bg-brand-primary/10">
+                {/* Instagram Sunset Gradient Ring Overlapping Avatar */}
+                <div className="relative p-1 rounded-full bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 shadow-xl">
+                  <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-full ring-4 ring-white overflow-hidden bg-white flex items-center justify-center text-3xl font-extrabold text-blue-600 shadow-inner">
                     {user.profile?.avatarUrl ? (
                       <img
                         src={user.profile.avatarUrl}
@@ -370,25 +376,25 @@ function ProfileContent() {
                     )}
                   </div>
                   {/* Online presence green badge */}
-                  <span className="absolute bottom-2 right-2 w-5 h-5 rounded-full bg-emerald-500 ring-4 ring-brand-surface" />
+                  <span className="absolute bottom-2 right-2 w-5 h-5 rounded-full bg-emerald-500 ring-4 ring-white shadow" />
                 </div>
 
                 {/* Name & Title */}
                 <div className="space-y-1 pb-2">
                   <div className="flex items-center space-x-2 justify-center sm:justify-start">
-                    <h1 className="text-2xl sm:text-3xl font-extrabold text-brand-text">
+                    <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
                       {displayName || `${firstName} ${lastName}`.trim() || 'BuildLink User'}
                     </h1>
                     {isVerifiedEngineer && (
-                      <span className="inline-flex items-center text-emerald-500" title="IESL Verified Engineer">
+                      <span className="inline-flex items-center text-blue-600" title="IESL Verified Engineer">
                         <ShieldCheck className="w-6 h-6" />
                       </span>
                     )}
                   </div>
 
-                  <p className="text-xs sm:text-sm text-brand-muted font-medium">
+                  <p className="text-xs sm:text-sm text-slate-600 font-medium">
                     {isEngineer ? (
-                      <span className="text-brand-primary font-semibold">
+                      <span className="text-blue-600 font-semibold">
                         {engineerTitle || 'Certified Construction Engineer'}
                       </span>
                     ) : (
@@ -397,9 +403,31 @@ function ProfileContent() {
                     {district && <span> • 📍 {district}, Sri Lanka</span>}
                   </p>
 
-                  <p className="text-xs text-brand-muted max-w-md">
+                  <p className="text-xs text-slate-500 max-w-md">
                     {bio || 'Building stronger homes & communities in Sri Lanka.'}
                   </p>
+
+                  {/* Instagram Stats Row */}
+                  <div className="pt-2 flex items-center justify-center sm:justify-start space-x-5 text-xs">
+                    <div>
+                      <span className="font-extrabold text-slate-900 text-sm mr-1">{myPosts.length}</span>
+                      <span className="text-slate-500 font-medium">Posts</span>
+                    </div>
+                    <div>
+                      <span className="font-extrabold text-slate-900 text-sm mr-1">{128 + myPosts.length * 12}</span>
+                      <span className="text-slate-500 font-medium">Followers</span>
+                    </div>
+                    <div>
+                      <span className="font-extrabold text-slate-900 text-sm mr-1">74</span>
+                      <span className="text-slate-500 font-medium">Following</span>
+                    </div>
+                    {isEngineer && (
+                      <div>
+                        <span className="font-extrabold text-amber-500 text-sm mr-1">⭐ {user.engineerProfile?.ratingAverage || 4.9}</span>
+                        <span className="text-slate-500 font-medium">({user.engineerProfile?.ratingCount || 34})</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 

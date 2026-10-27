@@ -47,6 +47,7 @@ import {
   FolderKanban,
   BookOpen,
   MessageCircle,
+  Heart,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -145,6 +146,50 @@ function FeedContent() {
   // Active hover reaction dock popover: postId
   const [hoveredReactionPostId, setHoveredReactionPostId] = useState<string | null>(null);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Instagram Double-Tap Heart Animation
+  const [doubleTapPostId, setDoubleTapPostId] = useState<string | null>(null);
+  const lastTapRef = useRef<{ [key: string]: number }>({});
+
+  // Bookmarked posts set
+  const [bookmarkedPosts, setBookmarkedPosts] = useState<Set<string>>(new Set());
+
+  // Listen for global navbar & bottom nav create events
+  useEffect(() => {
+    const handleOpenCreatePost = () => setShowCreateModal(true);
+    const handleOpenCreateStory = () => setShowStoryUploadModal(true);
+
+    window.addEventListener('buildlink:open-create-post', handleOpenCreatePost);
+    window.addEventListener('buildlink:open-create-story', handleOpenCreateStory);
+
+    return () => {
+      window.removeEventListener('buildlink:open-create-post', handleOpenCreatePost);
+      window.removeEventListener('buildlink:open-create-story', handleOpenCreateStory);
+    };
+  }, []);
+
+  const handleMediaDoubleTap = (postId: string) => {
+    const now = Date.now();
+    const lastTap = lastTapRef.current[postId] || 0;
+    if (now - lastTap < 350) {
+      setDoubleTapPostId(postId);
+      setTimeout(() => setDoubleTapPostId(null), 900);
+      handleReactToPost(postId, ReactionType.LOVE);
+    }
+    lastTapRef.current[postId] = now;
+  };
+
+  const toggleBookmark = (postId: string) => {
+    setBookmarkedPosts((prev) => {
+      const next = new Set(prev);
+      if (next.has(postId)) {
+        next.delete(postId);
+      } else {
+        next.add(postId);
+      }
+      return next;
+    });
+  };
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050/api/v1';
 
@@ -613,32 +658,40 @@ function FeedContent() {
            ======================================================== */}
         <main className="col-span-1 lg:col-span-6 space-y-5">
           
-          {/* --- 1. STORIES BAR (Facebook Site Snaps) --- */}
-          <div className="bg-brand-surface border border-brand-border rounded-2xl p-3.5 shadow-sm overflow-hidden">
+          {/* --- 1. STORIES BAR (Facebook & Instagram Stories) --- */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-3.5 shadow-sm overflow-hidden">
             <div className="flex items-center justify-between mb-2.5 px-1">
-              <span className="text-xs font-bold text-brand-text flex items-center space-x-1.5">
+              <span className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
                 <span>📸</span>
                 <span>Site Stories & Daily Snaps</span>
               </span>
-              <span className="text-[11px] text-brand-muted">24h site updates</span>
+              <span className="text-[11px] text-slate-500 font-medium">24h site updates</span>
             </div>
 
             <div className="flex items-center space-x-3 overflow-x-auto pb-1 scrollbar-none">
-              {/* Add Story Card */}
+              {/* Add Story Card (Facebook style) */}
               <button
                 onClick={() => {
                   if (!token) router.push('/login?redirect=/feed');
                   else setShowStoryUploadModal(true);
                 }}
-                className="w-24 h-36 rounded-xl border-2 border-dashed border-brand-primary/40 bg-brand-card hover:bg-brand-primary/5 flex flex-col items-center justify-center p-2 flex-shrink-0 transition-all group"
+                className="w-28 h-44 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 flex flex-col justify-between overflow-hidden flex-shrink-0 transition-all shadow-xs group relative select-none"
               >
-                <div className="w-9 h-9 rounded-full bg-brand-primary text-white flex items-center justify-center mb-2 shadow group-hover:scale-110 transition-transform">
-                  <PlusCircle className="w-5 h-5" />
+                <div className="h-28 w-full bg-slate-100 overflow-hidden flex items-center justify-center">
+                  {user?.profile?.avatarUrl ? (
+                    <img src={user.profile.avatarUrl} alt="Me" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                  ) : (
+                    <div className="w-full h-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-2xl">
+                      {user?.profile?.displayName?.substring(0, 2).toUpperCase() || 'BL'}
+                    </div>
+                  )}
                 </div>
-                <span className="text-[11px] font-bold text-brand-text text-center leading-tight">
-                  Add Site Story
-                </span>
-                <span className="text-[9px] text-brand-muted mt-0.5">Photo / Reel</span>
+                <div className="absolute top-24 left-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center ring-4 ring-white shadow-md group-hover:scale-110 transition-transform">
+                  <PlusCircle className="w-5 h-5 stroke-[2.2px]" />
+                </div>
+                <div className="pb-2.5 pt-4 text-center px-1">
+                  <p className="text-[11px] font-bold text-slate-900 leading-tight">Create story</p>
+                </div>
               </button>
 
               {/* Story Items */}
@@ -646,33 +699,35 @@ function FeedContent() {
                 <div
                   key={story.id}
                   onClick={() => setActiveStoryIndex(idx)}
-                  className="w-24 h-36 rounded-xl relative overflow-hidden flex-shrink-0 cursor-pointer shadow group select-none ring-2 ring-brand-primary/40 hover:ring-brand-primary transition-all"
+                  className="w-28 h-44 rounded-2xl relative overflow-hidden flex-shrink-0 cursor-pointer shadow-xs group select-none hover:shadow-lg transition-all"
                 >
                   <img
                     src={story.mediaUrl}
                     alt={story.caption || 'Site story'}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/30" />
                   
-                  {/* Top Avatar badge */}
-                  <div className="absolute top-2 left-2">
-                    <div className="w-7 h-7 rounded-full ring-2 ring-brand-primary overflow-hidden bg-brand-surface shadow">
-                      {story.authorAvatar ? (
-                        <img src={story.authorAvatar} alt={story.authorName} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full bg-brand-primary text-white text-[10px] font-bold flex items-center justify-center">
-                          {story.authorName.substring(0, 1)}
-                        </div>
-                      )}
+                  {/* Top Avatar with Instagram Sunset Gradient Ring */}
+                  <div className="absolute top-2.5 left-2.5">
+                    <div className="p-[2px] rounded-full bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 shadow-md">
+                      <div className="w-8 h-8 rounded-full overflow-hidden bg-white ring-2 ring-white">
+                        {story.authorAvatar ? (
+                          <img src={story.authorAvatar} alt={story.authorName} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center">
+                            {story.authorName.substring(0, 1)}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
 
                   {/* Bottom Text */}
-                  <div className="absolute bottom-1.5 left-1.5 right-1.5 text-white">
-                    <p className="text-[10px] font-bold truncate leading-tight">{story.authorName}</p>
+                  <div className="absolute bottom-2.5 left-2.5 right-2.5 text-white">
+                    <p className="text-xs font-bold truncate leading-tight drop-shadow">{story.authorName}</p>
                     {story.locationTag && (
-                      <p className="text-[8px] text-white/80 truncate flex items-center space-x-0.5">
+                      <p className="text-[9px] text-white/90 truncate flex items-center space-x-0.5 drop-shadow mt-0.5 font-medium">
                         <MapPin className="w-2.5 h-2.5 text-emerald-400 inline" />
                         <span>{story.locationTag}</span>
                       </p>
@@ -811,43 +866,49 @@ function FeedContent() {
               return (
                 <article
                   key={post.id}
-                  className="bg-brand-surface border border-brand-border rounded-2xl shadow-sm hover:shadow-md transition-shadow overflow-hidden space-y-3.5"
+                  className="bg-white border border-slate-200 rounded-2xl shadow-xs hover:shadow-md transition-shadow overflow-hidden space-y-3.5 select-none"
                 >
                   {/* Post Header */}
                   <div className="p-4 pb-0 flex items-start justify-between">
                     <div className="flex items-center space-x-3">
-                      <div className="relative">
-                        <div className="w-10 h-10 rounded-full bg-brand-primary/20 text-brand-primary flex items-center justify-center font-bold text-xs">
-                          {post.author.avatarUrl ? (
-                            <img
-                              src={post.author.avatarUrl}
-                              alt={post.author.displayName}
-                              className="w-10 h-10 rounded-full object-cover"
-                            />
-                          ) : (
-                            post.author.displayName.substring(0, 2).toUpperCase()
-                          )}
+                      {/* Author Avatar with Instagram Sunset Gradient Ring */}
+                      <Link href={`/profile/${post.author.id}`} className="relative group/avatar block">
+                        <div className="p-[2px] rounded-full bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 shadow-xs group-hover/avatar:scale-105 transition-transform">
+                          <div className="w-10 h-10 rounded-full bg-white ring-2 ring-white overflow-hidden flex items-center justify-center font-bold text-xs text-blue-600">
+                            {post.author.avatarUrl ? (
+                              <img
+                                src={post.author.avatarUrl}
+                                alt={post.author.displayName}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              post.author.displayName.substring(0, 2).toUpperCase()
+                            )}
+                          </div>
                         </div>
-                        <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-brand-surface" />
-                      </div>
+                        <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
+                      </Link>
 
                       <div>
                         <div className="flex items-center space-x-1.5 flex-wrap">
-                          <span className="text-xs font-bold text-brand-text hover:underline cursor-pointer">
+                          <Link
+                            href={`/profile/${post.author.id}`}
+                            className="text-xs font-bold text-slate-900 hover:underline cursor-pointer"
+                          >
                             {post.author.displayName}
-                          </span>
+                          </Link>
                           {post.author.isVerifiedEngineer && (
-                            <span className="inline-flex items-center space-x-0.5 text-emerald-500 text-[11px] font-semibold">
-                              <ShieldCheck className="w-3.5 h-3.5" />
+                            <span className="inline-flex items-center space-x-0.5 text-blue-600 text-[11px] font-semibold" title="Verified Engineer">
+                              <ShieldCheck className="w-4 h-4 text-blue-600" />
                               <span>Verified</span>
                             </span>
                           )}
                           {post.groupName && (
-                            <span className="text-brand-muted text-xs flex items-center space-x-1">
+                            <span className="text-slate-400 text-xs flex items-center space-x-1">
                               <span>▶ in</span>
                               <Link
                                 href={`/feed?category=${encodeURIComponent(post.category)}`}
-                                className="font-semibold text-brand-primary hover:underline truncate max-w-[150px]"
+                                className="font-semibold text-blue-600 hover:underline truncate max-w-[150px]"
                               >
                                 {post.groupName}
                               </Link>
@@ -855,19 +916,19 @@ function FeedContent() {
                           )}
                         </div>
 
-                        <div className="flex items-center space-x-1.5 text-[11px] text-brand-muted">
+                        <div className="flex items-center space-x-1.5 text-[11px] text-slate-500">
                           <span>{new Date(post.createdAt).toLocaleDateString()}</span>
                           <span>•</span>
                           {post.locationTag ? (
-                            <span className="flex items-center space-x-0.5 text-brand-text font-medium">
-                              <MapPin className="w-3 h-3 text-emerald-500" />
+                            <span className="flex items-center space-x-0.5 text-slate-700 font-medium">
+                              <MapPin className="w-3 h-3 text-rose-500" />
                               <span>{post.locationTag}</span>
                             </span>
                           ) : (
                             <span>🌐 Public</span>
                           )}
                           <span>•</span>
-                          <span className="px-1.5 py-0.2 rounded bg-brand-card text-[10px] font-medium border border-brand-border/40">
+                          <span className="px-1.5 py-0.2 rounded bg-slate-100 text-[10px] font-semibold text-slate-600 border border-slate-200">
                             {post.category}
                           </span>
                         </div>
@@ -877,11 +938,11 @@ function FeedContent() {
                     <div className="relative">
                       <button
                         onClick={() => {
-                          navigator.clipboard?.writeText(window.location.href);
-                          alert('Post link copied to clipboard!');
+                          navigator.clipboard?.writeText(window.location.origin + `/profile/${post.author.id}`);
+                          alert('Post & Profile link copied to clipboard!');
                         }}
-                        className="text-brand-muted hover:text-brand-text p-1.5 rounded-lg hover:bg-brand-card"
-                        title="Copy post link"
+                        className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100"
+                        title="Copy link"
                       >
                         <MoreHorizontal className="w-4 h-4" />
                       </button>
@@ -890,15 +951,18 @@ function FeedContent() {
 
                   {/* Post Content */}
                   <div className="px-4 space-y-2">
-                    <h3 className="text-sm font-bold text-brand-text leading-snug">{post.title}</h3>
-                    <p className="text-xs text-brand-text/90 leading-relaxed whitespace-pre-line">
+                    <h3 className="text-sm font-bold text-slate-900 leading-snug">{post.title}</h3>
+                    <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line">
                       {post.content}
                     </p>
                   </div>
 
-                  {/* Facebook Multi-Image Gallery */}
+                  {/* Facebook Multi-Image Gallery with Instagram Double-Tap Like */}
                   {post.mediaUrls && post.mediaUrls.length > 0 && (
-                    <div className="mt-2 bg-black/5">
+                    <div
+                      className="mt-2 bg-black relative select-none cursor-pointer overflow-hidden"
+                      onClick={() => handleMediaDoubleTap(post.id)}
+                    >
                       {post.mediaUrls.length === 1 ? (
                         <div className="max-h-[460px] overflow-hidden flex items-center justify-center bg-black">
                           <img
@@ -935,26 +999,33 @@ function FeedContent() {
                           </div>
                         </div>
                       )}
+
+                      {/* Instagram Bursting Heart Animation on Double-Tap */}
+                      {doubleTapPostId === post.id && (
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20 animate-in zoom-in-50 duration-200">
+                          <Heart className="w-24 h-24 text-red-500 fill-red-500 drop-shadow-2xl animate-bounce" />
+                        </div>
+                      )}
                     </div>
                   )}
 
                   {/* Reaction Summary Counters Row */}
-                  <div className="px-4 py-1.5 flex items-center justify-between text-xs text-brand-muted border-b border-brand-border/40 select-none">
+                  <div className="px-4 py-1.5 flex items-center justify-between text-xs text-slate-500 border-b border-slate-100 select-none">
                     <div className="flex items-center space-x-1.5">
                       {post.likesCount > 0 ? (
                         <>
                           <div className="flex items-center -space-x-1">
-                            <span className="w-5 h-5 rounded-full bg-blue-500 text-white text-[10px] flex items-center justify-center shadow">
+                            <span className="w-5 h-5 rounded-full bg-blue-500 text-white text-[10px] flex items-center justify-center shadow-xs">
                               👍
                             </span>
-                            <span className="w-5 h-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center shadow">
+                            <span className="w-5 h-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center shadow-xs">
                               ❤️
                             </span>
-                            <span className="w-5 h-5 rounded-full bg-emerald-500 text-white text-[10px] flex items-center justify-center shadow">
+                            <span className="w-5 h-5 rounded-full bg-emerald-500 text-white text-[10px] flex items-center justify-center shadow-xs">
                               🏗️
                             </span>
                           </div>
-                          <span className="font-semibold text-brand-text ml-1">
+                          <span className="font-semibold text-slate-800 ml-1">
                             {post.likesCount}
                           </span>
                         </>
@@ -972,8 +1043,8 @@ function FeedContent() {
                     </div>
                   </div>
 
-                  {/* Action Bar (Like with Facebook Hover Dock, Comment, Share) */}
-                  <div className="px-4 pb-2 relative flex items-center justify-between text-xs font-semibold text-brand-muted">
+                  {/* Action Bar (Like with Facebook Hover Dock, Comment, Share, Instagram Bookmark) */}
+                  <div className="px-4 pb-2 relative flex items-center justify-between text-xs font-semibold text-slate-600 gap-1">
                     
                     {/* Hover Reaction Popover Dock */}
                     {hoveredReactionPostId === post.id && (
@@ -982,7 +1053,7 @@ function FeedContent() {
                           if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
                         }}
                         onMouseLeave={() => setHoveredReactionPostId(null)}
-                        className="absolute bottom-10 left-4 bg-brand-surface border border-brand-border rounded-full shadow-2xl px-2.5 py-1.5 flex items-center space-x-2 z-30 animate-in fade-in zoom-in-95 duration-150"
+                        className="absolute bottom-10 left-4 bg-white border border-slate-200 rounded-full shadow-2xl px-2.5 py-1.5 flex items-center space-x-2 z-30 animate-in fade-in zoom-in-95 duration-150"
                       >
                         {(Object.keys(REACTION_CONFIG) as ReactionType[]).map((rKey) => {
                           const conf = REACTION_CONFIG[rKey];
@@ -994,7 +1065,7 @@ function FeedContent() {
                               title={conf.label}
                             >
                               <span className="text-xl">{conf.emoji}</span>
-                              <span className="text-[9px] font-bold text-brand-muted group-hover/btn:text-brand-text">
+                              <span className="text-[9px] font-bold text-slate-500 group-hover/btn:text-slate-900">
                                 {conf.label}
                               </span>
                             </button>
@@ -1018,8 +1089,8 @@ function FeedContent() {
                     >
                       <button
                         onClick={() => handleReactToPost(post.id, activeReaction || ReactionType.LIKE)}
-                        className={`w-full py-2 rounded-xl flex items-center justify-center space-x-2 transition-colors hover:bg-brand-card ${
-                          reactionInfo ? `${reactionInfo.color} font-bold` : 'text-brand-muted hover:text-brand-text'
+                        className={`w-full py-2 rounded-xl flex items-center justify-center space-x-2 transition-colors hover:bg-slate-100 ${
+                          reactionInfo ? `${reactionInfo.color} font-bold` : 'text-slate-600 hover:text-slate-900'
                         }`}
                       >
                         <span className="text-base">{reactionInfo ? reactionInfo.emoji : '👍'}</span>
@@ -1030,7 +1101,7 @@ function FeedContent() {
                     {/* Comment Button */}
                     <button
                       onClick={() => toggleComments(post.id)}
-                      className="flex-1 py-2 rounded-xl flex items-center justify-center space-x-2 transition-colors hover:bg-brand-card hover:text-brand-text"
+                      className="flex-1 py-2 rounded-xl flex items-center justify-center space-x-2 transition-colors hover:bg-slate-100 hover:text-slate-900 text-slate-600"
                     >
                       <MessageSquare className="w-4 h-4" />
                       <span>Comment</span>
@@ -1039,22 +1110,33 @@ function FeedContent() {
                     {/* Share Button */}
                     <button
                       onClick={() => {
-                        navigator.clipboard?.writeText(window.location.href);
+                        navigator.clipboard?.writeText(window.location.origin + `/profile/${post.author.id}`);
                         alert('Post link copied to clipboard!');
                       }}
-                      className="flex-1 py-2 rounded-xl flex items-center justify-center space-x-2 transition-colors hover:bg-brand-card hover:text-brand-text"
+                      className="flex-1 py-2 rounded-xl flex items-center justify-center space-x-2 transition-colors hover:bg-slate-100 hover:text-slate-900 text-slate-600"
                     >
                       <Share2 className="w-4 h-4" />
                       <span>Share</span>
+                    </button>
+
+                    {/* Instagram Bookmark Button */}
+                    <button
+                      onClick={() => toggleBookmark(post.id)}
+                      className={`p-2 rounded-xl flex items-center justify-center transition-colors hover:bg-slate-100 ${
+                        bookmarkedPosts.has(post.id) ? 'text-amber-500' : 'text-slate-400 hover:text-slate-700'
+                      }`}
+                      title={bookmarkedPosts.has(post.id) ? 'Saved to bookmarks' : 'Save post'}
+                    >
+                      <Bookmark className={`w-4 h-4 ${bookmarkedPosts.has(post.id) ? 'fill-amber-500' : ''}`} />
                     </button>
                   </div>
 
                   {/* Expanded Comments Section */}
                   {expandedComments[post.id] && (
-                    <div className="px-4 pb-4 pt-2 border-t border-brand-border/60 space-y-3 bg-brand-bg/30">
+                    <div className="px-4 pb-4 pt-2 border-t border-slate-100 space-y-3 bg-slate-50/60">
                       {/* Comment Input */}
                       <div className="flex items-start space-x-2.5">
-                        <div className="w-7 h-7 rounded-full bg-brand-primary/20 text-brand-primary flex items-center justify-center font-bold text-[10px] flex-shrink-0 mt-0.5">
+                        <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-[10px] flex-shrink-0 mt-0.5">
                           {user?.profile?.displayName ? user.profile.displayName.substring(0, 2).toUpperCase() : 'ME'}
                         </div>
                         <div className="flex-1 flex items-center space-x-2">
@@ -1068,12 +1150,12 @@ function FeedContent() {
                               if (e.key === 'Enter') handleAddComment(post.id);
                             }}
                             placeholder="Write a comment or advice..."
-                            className="flex-1 bg-brand-surface border border-brand-border rounded-full px-3.5 py-1.5 text-xs text-brand-text focus:outline-none focus:border-brand-primary"
+                            className="flex-1 bg-white border border-slate-200 rounded-full px-3.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500"
                           />
                           <button
                             onClick={() => handleAddComment(post.id)}
                             disabled={!commentInputs[post.id]?.trim()}
-                            className="p-1.5 rounded-full bg-brand-primary text-white disabled:opacity-40 hover:bg-brand-primary-hover transition-colors"
+                            className="p-1.5 rounded-full bg-blue-600 text-white disabled:opacity-40 hover:bg-blue-700 transition-colors"
                           >
                             <Send className="w-3.5 h-3.5" />
                           </button>
@@ -1083,34 +1165,34 @@ function FeedContent() {
                       {/* Comments Thread */}
                       <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
                         {loadingComments[post.id] ? (
-                          <p className="text-center text-xs text-brand-muted py-2">Loading comments...</p>
+                          <p className="text-center text-xs text-slate-400 py-2">Loading comments...</p>
                         ) : expandedComments[post.id].length === 0 ? (
-                          <p className="text-center text-xs text-brand-muted py-2">No comments yet. Start the conversation!</p>
+                          <p className="text-center text-xs text-slate-400 py-2">No comments yet. Start the conversation!</p>
                         ) : (
                           expandedComments[post.id].map((comm) => (
                             <div key={comm.id} className="flex items-start space-x-2.5 text-xs">
-                              <div className="w-7 h-7 rounded-full bg-brand-card text-brand-text border border-brand-border flex items-center justify-center font-bold text-[10px] flex-shrink-0 mt-0.5">
+                              <Link href={`/profile/${comm.author.id}`} className="w-7 h-7 rounded-full bg-slate-200 text-slate-700 border border-slate-300 flex items-center justify-center font-bold text-[10px] flex-shrink-0 mt-0.5 hover:opacity-80">
                                 {comm.author.displayName.substring(0, 2).toUpperCase()}
-                              </div>
+                              </Link>
                               <div className="flex-1 space-y-1">
-                                <div className="bg-brand-surface border border-brand-border rounded-2xl px-3 py-2 space-y-0.5">
+                                <div className="bg-white border border-slate-200 rounded-2xl px-3 py-2 space-y-0.5 shadow-xs">
                                   <div className="flex items-center space-x-1.5">
-                                    <span className="font-bold text-brand-text">
+                                    <Link href={`/profile/${comm.author.id}`} className="font-bold text-slate-900 hover:underline">
                                       {comm.author.displayName}
-                                    </span>
+                                    </Link>
                                     {comm.author.isVerifiedEngineer && (
-                                      <span className="text-emerald-500 text-[10px] font-semibold flex items-center">
+                                      <span className="text-blue-600 text-[10px] font-semibold flex items-center">
                                         <ShieldCheck className="w-3 h-3 mr-0.5" />
                                         <span>Verified</span>
                                       </span>
                                     )}
                                   </div>
-                                  <p className="text-brand-text/90 leading-relaxed">{comm.content}</p>
+                                  <p className="text-slate-800 leading-relaxed">{comm.content}</p>
                                 </div>
-                                <div className="flex items-center space-x-3 text-[10px] text-brand-muted px-2">
+                                <div className="flex items-center space-x-3 text-[10px] text-slate-500 px-2 font-medium">
                                   <span>{new Date(comm.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                  <button className="hover:underline font-semibold">Like</button>
-                                  <button className="hover:underline font-semibold">Reply</button>
+                                  <button className="hover:underline font-semibold text-slate-700">Like</button>
+                                  <button className="hover:underline font-semibold text-slate-700">Reply</button>
                                 </div>
                               </div>
                             </div>
@@ -1211,49 +1293,97 @@ function FeedContent() {
       </div>
 
       {/* ========================================================
-          FULL SCREEN / MODAL STORY VIEWER (Facebook Stories Player)
+          FULL SCREEN / MODAL STORY VIEWER (Instagram & Facebook Stories Player)
          ======================================================== */}
       {activeStoryIndex !== null && stories[activeStoryIndex] && (
-        <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-2 sm:p-4 select-none animate-fadeIn">
+          {/* Close Story Button */}
           <button
             onClick={() => setActiveStoryIndex(null)}
-            className="absolute top-4 right-4 text-white hover:text-amber-400 p-2.5 rounded-full bg-slate-900/80 hover:bg-slate-900 border border-white/20 z-20 transition-colors shadow-lg"
+            className="absolute top-4 right-4 text-white hover:text-slate-300 p-2.5 rounded-full bg-slate-900/80 hover:bg-slate-900 border border-white/20 z-30 transition-colors shadow-lg"
             title="Close Story"
           >
             <X className="w-6 h-6" />
           </button>
 
-          <div className="relative w-full max-w-sm h-[650px] bg-slate-900 rounded-2xl overflow-hidden shadow-2xl flex flex-col justify-between">
+          {/* Left Arrow (Previous) */}
+          {activeStoryIndex > 0 && (
+            <button
+              onClick={() => setActiveStoryIndex((prev) => (prev !== null && prev > 0 ? prev - 1 : prev))}
+              className="hidden sm:flex absolute left-8 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/25 text-white items-center justify-center z-30 transition-all text-xl font-bold"
+            >
+              ‹
+            </button>
+          )}
+
+          {/* Right Arrow (Next) */}
+          {activeStoryIndex < stories.length - 1 && (
+            <button
+              onClick={() => setActiveStoryIndex((prev) => (prev !== null && prev < stories.length - 1 ? prev + 1 : prev))}
+              className="hidden sm:flex absolute right-8 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/25 text-white items-center justify-center z-30 transition-all text-xl font-bold"
+            >
+              ›
+            </button>
+          )}
+
+          <div className="relative w-full max-w-sm h-[680px] bg-slate-950 rounded-2xl overflow-hidden shadow-2xl flex flex-col justify-between">
+            {/* Story Media */}
             <img
               src={stories[activeStoryIndex].mediaUrl}
               alt={stories[activeStoryIndex].caption || 'Story'}
               className="absolute inset-0 w-full h-full object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-black/60 pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-transparent to-black/70 pointer-events-none" />
 
-            {/* Top Bar with Progress */}
-            <div className="relative z-10 p-4 space-y-2">
-              <div className="w-full bg-white/40 h-1.5 rounded-full overflow-hidden">
-                <div className="bg-brand-orange h-full w-full animate-pulse" />
+            {/* Tap areas for mobile stories navigation */}
+            <div
+              onClick={() => {
+                if (activeStoryIndex > 0) setActiveStoryIndex(activeStoryIndex - 1);
+              }}
+              className="absolute left-0 top-16 bottom-28 w-1/3 z-10 cursor-pointer"
+            />
+            <div
+              onClick={() => {
+                if (activeStoryIndex < stories.length - 1) setActiveStoryIndex(activeStoryIndex + 1);
+                else setActiveStoryIndex(null);
+              }}
+              className="absolute right-0 top-16 bottom-28 w-2/3 z-10 cursor-pointer"
+            />
+
+            {/* Top Bar with Segmented Stories Progress Bars */}
+            <div className="relative z-20 p-3.5 space-y-2.5">
+              <div className="flex items-center space-x-1.5 w-full">
+                {stories.map((_, sIdx) => (
+                  <div key={sIdx} className="flex-1 bg-white/30 h-1 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full bg-white transition-all duration-300 ${
+                        sIdx < activeStoryIndex ? 'w-full' : sIdx === activeStoryIndex ? 'w-full animate-pulse' : 'w-0'
+                      }`}
+                    />
+                  </div>
+                ))}
               </div>
 
-              <div className="flex items-center space-x-2 text-white">
-                <div className="w-8 h-8 rounded-full overflow-hidden bg-white ring-2 ring-brand-blue">
-                  {stories[activeStoryIndex].authorAvatar ? (
-                    <img
-                      src={stories[activeStoryIndex].authorAvatar}
-                      alt={stories[activeStoryIndex].authorName}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-brand-blue text-white text-xs font-bold flex items-center justify-center">
-                      {stories[activeStoryIndex].authorName.substring(0, 1)}
-                    </div>
-                  )}
+              {/* Author Row */}
+              <div className="flex items-center space-x-2.5 text-white">
+                <div className="p-[2px] rounded-full bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600">
+                  <div className="w-8 h-8 rounded-full overflow-hidden bg-white ring-1 ring-white">
+                    {stories[activeStoryIndex].authorAvatar ? (
+                      <img
+                        src={stories[activeStoryIndex].authorAvatar}
+                        alt={stories[activeStoryIndex].authorName}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">
+                        {stories[activeStoryIndex].authorName.substring(0, 1)}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs font-bold leading-tight drop-shadow">{stories[activeStoryIndex].authorName}</p>
-                  <p className="text-[10px] text-white/90 drop-shadow">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold leading-tight drop-shadow truncate">{stories[activeStoryIndex].authorName}</p>
+                  <p className="text-[10px] text-white/80 drop-shadow">
                     {stories[activeStoryIndex].locationTag && `📍 ${stories[activeStoryIndex].locationTag} • `}
                     {new Date(stories[activeStoryIndex].createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </p>
@@ -1261,26 +1391,42 @@ function FeedContent() {
               </div>
             </div>
 
-            {/* Bottom Caption */}
-            <div className="relative z-10 p-4 text-white space-y-2">
+            {/* Bottom Section: Caption, Quick Reactions & Reply */}
+            <div className="relative z-20 p-4 text-white space-y-3">
               {stories[activeStoryIndex].caption && (
-                <p className="text-sm font-semibold leading-relaxed drop-shadow bg-black/40 backdrop-blur-xs p-3 rounded-xl border border-white/10">
+                <p className="text-xs font-medium leading-relaxed drop-shadow bg-black/50 backdrop-blur-md p-2.5 rounded-xl border border-white/10">
                   {stories[activeStoryIndex].caption}
                 </p>
               )}
 
-              <div className="flex items-center space-x-2 pt-2">
+              {/* Instagram Quick Reaction Emojis */}
+              <div className="flex items-center justify-around py-1">
+                {['❤️', '😂', '😮', '😢', '👏', '🔥'].map((emoji) => (
+                  <button
+                    key={emoji}
+                    onClick={() => {
+                      alert(`Reacted ${emoji} to ${stories[activeStoryIndex].authorName}'s story!`);
+                    }}
+                    className="text-2xl hover:scale-130 transition-transform active:scale-95 drop-shadow"
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+
+              {/* Reply Input Box */}
+              <div className="flex items-center space-x-2">
                 <input
                   type="text"
                   placeholder={`Reply to ${stories[activeStoryIndex].authorName}...`}
-                  className="flex-1 bg-black/60 border border-white/30 rounded-full px-4 py-2 text-xs text-white placeholder:text-white/70 focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                  className="flex-1 bg-black/60 border border-white/30 rounded-full px-4 py-2 text-xs text-white placeholder:text-white/70 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <button
                   onClick={() => {
-                    alert('Story reply sent!');
+                    alert('Story reply sent to Messenger!');
                     setActiveStoryIndex(null);
                   }}
-                  className="p-2 rounded-full bg-brand-blue hover:bg-blue-600 text-white shadow-md transition-colors"
+                  className="p-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-md transition-colors"
                 >
                   <Send className="w-4 h-4" />
                 </button>
