@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import { env } from './config';
 import { requestLogger } from './middleware/requestLogger';
 import { errorHandler } from './middleware/errorHandler';
+import { generalRateLimiter } from './middleware/rateLimiter';
 import { apiRouter } from './routes';
 import { sendError } from './common/response';
 
@@ -25,6 +26,9 @@ export function createApp(): Express {
     })
   );
 
+  // Rate Limiting
+  app.use(generalRateLimiter);
+
   // Body Parsing
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -37,6 +41,7 @@ export function createApp(): Express {
 
   // API Routes
   app.use(env.API_PREFIX, apiRouter);
+
 
   // Fallback 404 handler for unknown routes
   app.use((_req, res) => {
