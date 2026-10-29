@@ -347,6 +347,10 @@ export class UserService {
       if (dto.consultationFee !== undefined) eng.consultationFee = dto.consultationFee;
       if (dto.availableForConsultation !== undefined) eng.availableForConsultation = dto.availableForConsultation;
 
+      if (dto.bio !== undefined) {
+        await UserService.updateProfile(userId, { bio: dto.bio });
+      }
+
       return engineerRepo.save(eng);
     }
 
@@ -390,9 +394,37 @@ export class UserService {
     if (dto.availableForConsultation !== undefined) {
       record.engineerProfile.availableForConsultation = dto.availableForConsultation;
     }
+    if (dto.bio !== undefined && record.profile) {
+      record.profile.bio = dto.bio;
+    }
     record.engineerProfile.updatedAt = new Date();
 
     return record.engineerProfile;
+  }
+
+  public static async setEngineerVerificationAndRating(
+    userId: string,
+    verificationStatus: VerificationStatus,
+    ratingAverage: number,
+    ratingCount: number
+  ): Promise<void> {
+    if (AppDataSource.isInitialized) {
+      const engineerRepo = AppDataSource.getRepository(EngineerProfile);
+      await engineerRepo.update(
+        { userId },
+        {
+          verificationStatus,
+          ratingAverage,
+          ratingCount,
+        }
+      );
+    }
+    const record = memoryStore.get(userId);
+    if (record && record.engineerProfile) {
+      record.engineerProfile.verificationStatus = verificationStatus;
+      record.engineerProfile.ratingAverage = ratingAverage;
+      record.engineerProfile.ratingCount = ratingCount;
+    }
   }
 
   public static async changePassword(userId: string, currentPlain: string, newPlain: string): Promise<void> {

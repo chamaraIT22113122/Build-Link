@@ -102,12 +102,13 @@ export class ProjectService {
       throw new Error('OWNER_NOT_FOUND');
     }
 
-    let engineerProfile: EngineerProfile | null = null;
+    let resolvedEngineerProfileId: string | undefined = undefined;
     if (dto.assignedEngineerId) {
       const eng = await EngineerService.getEngineerById(dto.assignedEngineerId);
       if (!eng) {
         throw new Error('ENGINEER_NOT_FOUND');
       }
+      resolvedEngineerProfileId = eng.id;
     }
 
     const startDate = dto.startDate ? new Date(dto.startDate) : undefined;
@@ -119,7 +120,7 @@ export class ProjectService {
 
       const project = projRepo.create({
         ownerId,
-        assignedEngineerId: dto.assignedEngineerId,
+        assignedEngineerId: resolvedEngineerProfileId,
         title: dto.title,
         description: dto.description,
         location: dto.location,

@@ -16,20 +16,24 @@ router.post(
 // Dedicated Q&A Questions Listing
 router.get('/questions/catalog', optionalAuthenticateJwt, PostController.listQuestions);
 
+// Facebook Stories (Site Snaps) - Must be registered BEFORE /:id
+router.get('/stories', optionalAuthenticateJwt, PostController.getStories);
+router.post('/stories', authenticateJwt, PostController.createStory);
+
+// Specialized Engineering & Builder Groups - Must be registered BEFORE /:id
+router.get('/groups', optionalAuthenticateJwt, PostController.getGroups);
+router.post('/groups/:groupId/join', authenticateJwt, PostController.toggleJoinGroup);
+
+// Comments & Helpful Answer Endorsement (specific prefix routes before /:id)
+router.post('/comments/:commentId/helpful', authenticateJwt, PostController.toggleHelpfulComment);
+router.delete('/comments/:commentId', authenticateJwt, PostController.deleteComment);
+
 // Feed & Post CRUD
 router.get('/', optionalAuthenticateJwt, PostController.listPosts);
 router.post('/', authenticateJwt, PostController.createPost);
 router.get('/:id', optionalAuthenticateJwt, PostController.getPostById);
 router.put('/:id', authenticateJwt, PostController.updatePost);
 router.delete('/:id', authenticateJwt, PostController.deletePost);
-
-// Facebook Stories (Site Snaps)
-router.get('/stories', optionalAuthenticateJwt, PostController.getStories);
-router.post('/stories', authenticateJwt, PostController.createStory);
-
-// Facebook Groups
-router.get('/groups', optionalAuthenticateJwt, PostController.getGroups);
-router.post('/groups/:groupId/join', authenticateJwt, PostController.toggleJoinGroup);
 
 // Question Resolution & Accepted Answers
 router.put('/:id/resolve', authenticateJwt, PostController.resolveQuestion);
@@ -39,10 +43,8 @@ router.put('/:id/unresolve', authenticateJwt, PostController.unresolveQuestion);
 router.post('/:id/like', authenticateJwt, PostController.toggleLike);
 router.post('/:id/react', authenticateJwt, PostController.toggleLike);
 
-// Comments & Helpful Answer Endorsement
+// Post Comments
 router.post('/:id/comments', authenticateJwt, PostController.addComment);
 router.get('/:id/comments', PostController.getComments);
-router.post('/comments/:commentId/helpful', authenticateJwt, PostController.toggleHelpfulComment);
-router.delete('/comments/:commentId', authenticateJwt, PostController.deleteComment);
 
 export const postRoutes = router;

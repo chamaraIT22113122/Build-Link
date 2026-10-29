@@ -819,46 +819,61 @@ export class PostService {
     return allQuestions.filter((q) => q.questionStatus === params.status);
   }
 
-  // --- Facebook Stories (Site Snaps) ---
+  // --- Facebook Stories (Site Snaps) backed by Real Database Accounts ---
   public static async getStories(currentUserId?: string): Promise<StoryDto[]> {
     const now = new Date();
-    // Default initial seeded stories if memoryStories is empty
+    // Default initial seeded stories linked to real database accounts if memoryStories is empty
     if (memoryStories.length === 0) {
       const dayAhead = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      const kamal = await UserService.findByEmail('kamal.engineer@buildlink.lk');
+      const oshadi = await UserService.findByEmail('oshadi.arch@buildlink.lk');
+      const client = await UserService.findByEmail('client@buildlink.lk');
+      const anura = await UserService.findByEmail('anura.geotech@buildlink.lk');
+      const nimal = await UserService.findByEmail('nimal.mep@buildlink.lk');
+
       memoryStories.push(
         {
           id: 'story-1',
-          authorId: 'eng-kasun',
-          mediaUrl: 'https://images.unsplash.com/photo-1541888946425-d0fbb18f15f6?auto=format&fit=crop&w=600&q=80',
-          caption: 'Slab reinforcement inspection passed today! SLS 1253 compliant.',
-          locationTag: 'Kandy',
+          authorId: kamal?.id || 'eng-kasun',
+          mediaUrl: 'https://images.unsplash.com/photo-1541888946425-d0fbb18615f3?auto=format&fit=crop&w=600&q=80',
+          caption: 'Slab reinforcement inspection passed today in Colombo 03! SLS 1253 compliant.',
+          locationTag: 'Colombo 03',
           createdAt: now,
           expiresAt: dayAhead,
         },
         {
           id: 'story-2',
-          authorId: 'arch-nimali',
+          authorId: oshadi?.id || 'arch-nimali',
           mediaUrl: 'https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=600&q=80',
-          caption: 'Cantilever balcony casting in progress. Precision formwork & cover blocks.',
-          locationTag: 'Galle Fort',
+          caption: 'CSEB eco-courtyard cantilever balcony casting in progress. Precision formwork & cover blocks.',
+          locationTag: 'Kurunegala',
           createdAt: new Date(now.getTime() - 2 * 3600 * 1000),
           expiresAt: dayAhead,
         },
         {
           id: 'story-3',
-          authorId: 'wardena-build',
+          authorId: client?.id || 'wardena-build',
           mediaUrl: 'https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=600&q=80',
-          caption: 'Substructure backfilling & 95% compaction test verified.',
-          locationTag: 'Colombo 07',
+          caption: 'First-floor slab formwork and substructure compaction test verified at our Kandy site.',
+          locationTag: 'Peradeniya, Kandy',
           createdAt: new Date(now.getTime() - 4 * 3600 * 1000),
           expiresAt: dayAhead,
         },
         {
           id: 'story-4',
-          authorId: 'eng-ruwan',
-          mediaUrl: 'https://images.unsplash.com/photo-1590381105924-c72589b9ef3f?auto=format&fit=crop&w=600&q=80',
-          caption: 'NBRO certified retaining wall anchor rods drilled and grouted.',
-          locationTag: 'Nuwara Eliya',
+          authorId: anura?.id || 'eng-ruwan',
+          mediaUrl: 'https://images.unsplash.com/photo-1590274853856-f22d5ee3d228?auto=format&fit=crop&w=600&q=80',
+          caption: 'NBRO certified retaining wall anchor rods and weep holes completed in Hantana.',
+          locationTag: 'Hantana, Kandy',
+          createdAt: new Date(now.getTime() - 5 * 3600 * 1000),
+          expiresAt: dayAhead,
+        },
+        {
+          id: 'story-5',
+          authorId: nimal?.id || 'eng-kasun',
+          mediaUrl: 'https://images.unsplash.com/photo-1509391365360-2e959784a276?auto=format&fit=crop&w=600&q=80',
+          caption: '5kW Hybrid Solar PV array & LiFePO4 battery inverter commissioned in Negombo.',
+          locationTag: 'Negombo',
           createdAt: new Date(now.getTime() - 6 * 3600 * 1000),
           expiresAt: dayAhead,
         }
@@ -872,28 +887,26 @@ export class PostService {
       let authorRole = UserRole.ENGINEER;
       let isVerifiedEngineer = true;
 
-      if (s.authorId === 'eng-kasun') {
-        authorName = 'Eng. Kasun Perera';
+      const u = await UserService.findById(s.authorId);
+      if (u) {
+        authorName = u.profile?.displayName || `${u.profile?.firstName || ''} ${u.profile?.lastName || ''}`.trim() || 'Community Member';
+        authorAvatar = u.profile?.avatarUrl;
+        authorRole = u.role;
+        isVerifiedEngineer = u.role === UserRole.ENGINEER && u.engineerProfile?.verificationStatus === VerificationStatus.VERIFIED;
+      } else if (s.authorId === 'eng-kasun') {
+        authorName = 'Eng. Kamal Silva';
         authorAvatar = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80';
       } else if (s.authorId === 'arch-nimali') {
-        authorName = 'Arch. Nimali Silva';
+        authorName = 'Eng. Oshadi Senanayake';
         authorAvatar = 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=150&q=80';
       } else if (s.authorId === 'wardena-build') {
-        authorName = 'Wardena Projects';
-        authorAvatar = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80';
+        authorName = 'Dilshan Perera';
+        authorAvatar = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80';
         authorRole = UserRole.USER;
         isVerifiedEngineer = false;
       } else if (s.authorId === 'eng-ruwan') {
-        authorName = 'Eng. Ruwan Jayawardena';
-        authorAvatar = 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80';
-      } else {
-        const u = await UserService.findById(s.authorId);
-        if (u) {
-          authorName = u.profile?.displayName || `${u.profile?.firstName || ''} ${u.profile?.lastName || ''}`.trim() || 'Community Member';
-          authorAvatar = u.profile?.avatarUrl;
-          authorRole = u.role;
-          isVerifiedEngineer = u.role === UserRole.ENGINEER && u.engineerProfile?.verificationStatus === VerificationStatus.VERIFIED;
-        }
+        authorName = 'Eng. Anura Wickramasinghe';
+        authorAvatar = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80';
       }
 
       result.push({
@@ -948,14 +961,14 @@ export class PostService {
     };
   }
 
-  // --- Facebook-style Construction Groups ---
+  // --- Specialized Engineering & Builder Groups ---
   public static async getGroups(currentUserId?: string): Promise<ConstructionGroupDto[]> {
     const baseGroups: ConstructionGroupDto[] = [
       {
         id: 'group-1',
         name: 'Sri Lanka Home Builders & Renovators',
         slug: 'sl-home-builders',
-        description: 'The largest active community of Sri Lankan homeowners, architects, and structural advisors sharing real site progress and construction costs.',
+        description: 'The largest active community of Sri Lankan homeowners, architects, and structural advisors sharing real site progress, BOQ rates, and house construction tips.',
         category: 'Residential',
         coverImage: 'https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=800&q=80',
         icon: '🏠',
@@ -967,11 +980,11 @@ export class PostService {
       },
       {
         id: 'group-2',
-        name: 'Structural Engineers & MEP Hub',
+        name: 'Structural Engineers & MEP Hub (IESL)',
         slug: 'structural-mep-hub',
-        description: 'Professional technical discussions on Eurocodes, BS 8110, SLS standards, foundation raft design, and MEP coordination.',
+        description: 'Professional technical discussions on Eurocodes, BS 8110, SLS 1253 concrete standards, CIDA SP/201 clear cover, foundation raft design, and MEP coordination.',
         category: 'Structural Engineering',
-        coverImage: 'https://images.unsplash.com/photo-1541888946425-d0fbb18f15f6?auto=format&fit=crop&w=800&q=80',
+        coverImage: 'https://images.unsplash.com/photo-1541888946425-d0fbb18615f3?auto=format&fit=crop&w=800&q=80',
         icon: '📐',
         membersCount: 5830,
         postsCount: 640,
@@ -983,7 +996,7 @@ export class PostService {
         id: 'group-3',
         name: 'Cost-Effective & Eco Housing Sri Lanka',
         slug: 'eco-housing-sl',
-        description: 'Sustainable CSEB compressed earth blocks, solar integration, rainwater harvesting, and keeping home construction under budget.',
+        description: 'Sustainable CSEB compressed earth blocks, passive tropical cooling, courtyard villas, rainwater harvesting, and keeping home construction under budget.',
         category: 'Sustainable Construction',
         coverImage: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=800&q=80',
         icon: '🌱',
@@ -997,9 +1010,9 @@ export class PostService {
         id: 'group-4',
         name: 'Hill Country & NBRO Safe Builders',
         slug: 'hill-country-nbro',
-        description: 'Dedicated to safe slope cutting, retaining walls, soil nails, drainage channels, and landslide clearances in Kandy, Badulla & Nuwara Eliya.',
+        description: 'Dedicated to safe slope cutting, RC cantilever retaining walls, soil nailing, weep-hole drainage channels, and NBRO landslide clearances in Kandy, Badulla & Nuwara Eliya.',
         category: 'Geotechnical & Landslides',
-        coverImage: 'https://images.unsplash.com/photo-1590381105924-c72589b9ef3f?auto=format&fit=crop&w=800&q=80',
+        coverImage: 'https://images.unsplash.com/photo-1590274853856-f22d5ee3d228?auto=format&fit=crop&w=800&q=80',
         icon: '⛰️',
         membersCount: 3420,
         postsCount: 420,
@@ -1011,7 +1024,7 @@ export class PostService {
         id: 'group-5',
         name: 'Smart Home Automation & Solar LK',
         slug: 'solar-smarthome-lk',
-        description: 'Hybrid inverters, net-metering CEB tariffs, smart lighting, automated water pump relays, and home CCTV networking.',
+        description: 'Hybrid solar PV inverters, CEB Net-Plus tariffs, 3-phase wiring, lightning arresters, automated water pump relays, and smart home networking.',
         category: 'Electrical & Renewable',
         coverImage: 'https://images.unsplash.com/photo-1509391365360-2e959784a276?auto=format&fit=crop&w=800&q=80',
         icon: '⚡',
@@ -1021,7 +1034,29 @@ export class PostService {
         locationDistrict: 'Western Province',
         createdAt: '2025-05-01T00:00:00.000Z',
       },
+      {
+        id: 'group-6',
+        name: 'Colombo & Gampaha Modern Villa Builders',
+        slug: 'colombo-villa-builders',
+        description: 'Connect with verified contractors, quantity surveyors, and homeowners building modern two-storey and three-storey residences in Colombo, Gampaha, and Kalutara.',
+        category: 'Residential',
+        coverImage: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80',
+        icon: '🏘️',
+        membersCount: 7490,
+        postsCount: 530,
+        isPrivate: false,
+        locationDistrict: 'Colombo & Gampaha',
+        createdAt: '2025-05-20T00:00:00.000Z',
+      },
     ];
+
+    // Pre-join logged-in users to initial groups if they haven't initialized group memberships yet
+    if (currentUserId && !memoryGroupMembers.has(`init:${currentUserId}`)) {
+      memoryGroupMembers.add(`init:${currentUserId}`);
+      memoryGroupMembers.add(`group-1:${currentUserId}`);
+      memoryGroupMembers.add(`group-2:${currentUserId}`);
+      memoryGroupMembers.add(`group-4:${currentUserId}`);
+    }
 
     return baseGroups.map((g) => ({
       ...g,

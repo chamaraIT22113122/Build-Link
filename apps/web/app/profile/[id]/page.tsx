@@ -141,6 +141,9 @@ export default function UserProfileTimelinePage() {
   const [activeTab, setActiveTab] = useState<'timeline' | 'photos' | 'about' | 'connections'>('timeline');
   const [isConnected, setIsConnected] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
+  const [peerConnections, setPeerConnections] = useState<
+    Array<{ userId: string; name: string; title: string; district: string; avatarUrl?: string; isVerified?: boolean }>
+  >([]);
 
   // Instagram Double-Tap Heart Animation
   const [doubleTapPostId, setDoubleTapPostId] = useState<string | null>(null);
@@ -205,6 +208,32 @@ export default function UserProfileTimelinePage() {
     };
 
     fetchUserPosts();
+  }, [profileId]);
+
+  // 3. Fetch Real Database Peer Engineers & Connections
+  useEffect(() => {
+    const fetchConnections = async () => {
+      try {
+        const res = await fetch(`${apiUrl}/engineers`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data)) {
+          const peers = data.data
+            .filter((e: any) => e.userId !== profileId)
+            .map((e: any) => ({
+              userId: e.userId,
+              name: e.displayName,
+              title: e.title,
+              district: e.district || 'Colombo',
+              avatarUrl: e.avatarUrl,
+              isVerified: e.isVerified,
+            }));
+          setPeerConnections(peers);
+        }
+      } catch {
+        // Handled silently
+      }
+    };
+    fetchConnections();
   }, [profileId]);
 
   // Handle Messenger Trigger
@@ -498,12 +527,18 @@ export default function UserProfileTimelinePage() {
 
                     {/* Connect / Add Friend Button */}
                     <button
-                      onClick={() => {
-                        if (!currentUser) router.push('/login');
-                        else {
-                          setIsConnected(!isConnected);
-                          alert(isConnected ? 'Connection removed' : 'Connection request sent to ' + name);
+                      onClick={async () => {
+                        if (!currentUser || !token) {
+                          router.push('/login');
+                          return;
                         }
+                        try {
+                          await fetch(`${apiUrl}/messages/connect/${profileId}`, {
+                            method: 'POST',
+                            headers: { Authorization: `Bearer ${token}` },
+                          });
+                        } catch {}
+                        setIsConnected(!isConnected);
                       }}
                       className={`px-4 py-2.5 text-xs font-bold rounded-xl transition-colors flex items-center justify-center space-x-1.5 ${
                         isConnected
@@ -1114,24 +1149,38 @@ export default function UserProfileTimelinePage() {
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-extrabold text-slate-900">Connections & Peer Engineers</h3>
-              <span className="text-xs font-semibold text-slate-500">142 Mutual Connections</span>
+              <span className="text-xs font-semibold text-slate-500">
+                {peerConnections.length} Verified Network Peers
+              </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {[
-                { name: 'Eng. Kasun Perera', title: 'Chartered Structural Engineer', district: 'Kandy' },
-                { name: 'Arch. Nimali Silva', title: 'Chartered Architect', district: 'Galle' },
-                { name: 'Eng. Ruwan Jayawardena', title: 'Geotechnical & NBRO Specialist', district: 'Nuwara Eliya' },
-              ].map((conn, idx) => (
+              {peerConnections.map((conn, idx) => (
                 <div
-                  key={idx}
+                  key={conn.userId || idx}
                   className="p-3 border border-slate-200 rounded-xl flex items-center space-x-3 hover:bg-slate-50 transition-colors"
                 >
-                  <div className="w-11 h-11 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs flex-shrink-0">
-                    {conn.name.substring(0, 2)}
-                  </div>
+                  <Link href={`/profile/${conn.userId}`} className="flex-shrink-0">
+                    {conn.avatarUrl ? (
+                      <img
+                        src={conn.avatarUrl}
+                        alt={conn.name}
+                        className="w-11 h-11 rounded-full object-cover border border-slate-200"
+                      />
+                    ) : (
+                      <div className="w-11 h-11 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">
+                        {conn.name.substring(0, 2)}
+                      </div>
+                    )}
+                  </Link>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-slate-900 truncate">{conn.name}</p>
+                    <Link
+                      href={`/profile/${conn.userId}`}
+                      className="text-xs font-bold text-slate-900 hover:text-blue-600 truncate flex items-center space-x-1"
+                    >
+                      <span className="truncate">{conn.name}</span>
+                      {conn.isVerified && <ShieldCheck className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />}
+                    </Link>
                     <p className="text-[11px] text-slate-500 truncate">{conn.title}</p>
                     <p className="text-[10px] text-slate-400">{conn.district}</p>
                   </div>
@@ -1139,10 +1188,11 @@ export default function UserProfileTimelinePage() {
                     onClick={() => {
                       const event = new CustomEvent('buildlink:open-chat', {
                         detail: {
-                          partnerId: `demo-${idx}`,
+                          partnerId: conn.userId,
                           partnerName: conn.name,
+                          partnerAvatar: conn.avatarUrl,
                           partnerRole: UserRole.ENGINEER,
-                          isVerifiedEngineer: true,
+                          isVerifiedEngineer: Boolean(conn.isVerified),
                           partnerTitle: conn.title,
                         },
                       });
