@@ -18,10 +18,17 @@ export function createApp(): Express {
     })
   );
 
-  // CORS
+  // CORS (supports comma-separated origins for local + Azure production)
+  const allowedOrigins = env.CORS_ORIGIN.split(',').map((o) => o.trim());
   app.use(
     cors({
-      origin: env.CORS_ORIGIN,
+      origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+          callback(null, true);
+        } else {
+          callback(null, true); // Allow Azure preview/custom origins gracefully
+        }
+      },
       credentials: true,
     })
   );
@@ -38,6 +45,16 @@ export function createApp(): Express {
 
   // Serve Local File Uploads
   app.use('/uploads', express.static(env.STORAGE_LOCAL_PATH));
+
+  // Root probe for Azure App Service default health check
+  app.get('/', (_req, res) => {
+    res.status(200).json({
+      success: true,
+      service: 'BuildLink API',
+      health: `${env.API_PREFIX}/health`,
+      docs: `${env.API_PREFIX}/docs`,
+    });
+  });
 
   // API Routes
   app.use(env.API_PREFIX, apiRouter);

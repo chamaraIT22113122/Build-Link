@@ -4,18 +4,20 @@
   "private": true,
   "description": "BuildLink - Construction Community, Professional Directory, and Consultation Platform",
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   "scripts": {
     "dev": "npm run dev --workspaces",
     "dev:web": "npm run dev --workspace=apps/web",
     "dev:api": "npm run dev --workspace=apps/api",
     "build": "npm run build --workspaces",
-    "build:web": "npm run build --workspace=apps/web",
-    "build:api": "npm run build --workspace=apps/api",
+    "build:shared": "npm run build --workspace=packages/shared",
+    "build:web": "npm run build --workspace=packages/shared && npm run build --workspace=apps/web",
+    "build:api": "npm run build --workspace=packages/shared && npm run build --workspace=apps/api",
     "start": "npm run start --workspace=apps/api",
     "start:api": "npm run start --workspace=apps/api",
+    "start:web": "npm run start --workspace=apps/web",
     "test": "npm run test --workspaces",
     "test:api": "npm run test --workspace=apps/api",
     "lint": "npm run lint --workspaces"

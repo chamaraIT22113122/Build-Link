@@ -48,13 +48,16 @@ export const AppDataSource = new DataSource({
     UserConnection,
   ],
   migrations: [__dirname + '/migrations/*.{ts,js}'],
+  connectionTimeout: 60000,
+  requestTimeout: 60000,
   options: {
     encrypt: env.DB_ENCRYPT,
     trustServerCertificate: env.DB_TRUST_SERVER_CERTIFICATE,
-    connectTimeout: 30000,
+    connectTimeout: 60000,
   },
   extra: {
-    requestTimeout: 30000,
+    connectionTimeout: 60000,
+    requestTimeout: 60000,
   },
 });
 
@@ -73,36 +76,45 @@ export let dbState: DatabaseConnectionState = {
   database: env.DB_NAME,
 };
 
-export async function initializeDatabase(): Promise<DatabaseConnectionState> {
-  try {
-    if (!AppDataSource.isInitialized) {
-      await AppDataSource.initialize();
+export async function initializeDatabase(retries = 2): Promise<DatabaseConnectionState> {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      if (!AppDataSource.isInitialized) {
+        await AppDataSource.initialize();
+      }
+      dbState = {
+        isConnected: true,
+        engine: 'Azure SQL Database (Cloud)',
+        host: `${env.DB_HOST}:${env.DB_PORT}`,
+        database: env.DB_NAME,
+      };
+      console.log(
+        `[Database] Successfully connected to Azure SQL Database (${env.DB_NAME} at ${env.DB_HOST}:${env.DB_PORT})`
+      );
+      return dbState;
+    } catch (err: unknown) {
+      const errorMsg =
+        err instanceof Error ? err.message : 'Unknown database connection error';
+      if (attempt < retries) {
+        console.warn(
+          `[Database] Connection attempt ${attempt}/${retries} timed out or failed (${errorMsg}). Retrying (Azure SQL Serverless may be waking from auto-pause)...`
+        );
+        continue;
+      }
+      dbState = {
+        isConnected: false,
+        engine: 'Azure SQL Database (Cloud)',
+        host: `${env.DB_HOST}:${env.DB_PORT}`,
+        database: env.DB_NAME,
+        error: errorMsg,
+      };
+      console.warn(
+        `[Database] Note: Azure SQL Database connection error at ${env.DB_HOST}:${env.DB_PORT}.\n` +
+          `Reason: ${errorMsg}\n` +
+          `BuildLink API will continue running in diagnostic/offline-ready mode.`
+      );
+      return dbState;
     }
-    dbState = {
-      isConnected: true,
-      engine: 'Azure SQL Database (Cloud)',
-      host: `${env.DB_HOST}:${env.DB_PORT}`,
-      database: env.DB_NAME,
-    };
-    console.log(
-      `[Database] Successfully connected to Azure SQL Database (${env.DB_NAME} at ${env.DB_HOST}:${env.DB_PORT})`
-    );
-    return dbState;
-  } catch (err: unknown) {
-    const errorMsg =
-      err instanceof Error ? err.message : 'Unknown database connection error';
-    dbState = {
-      isConnected: false,
-      engine: 'Azure SQL Database (Cloud)',
-      host: `${env.DB_HOST}:${env.DB_PORT}`,
-      database: env.DB_NAME,
-      error: errorMsg,
-    };
-    console.warn(
-      `[Database] Note: Azure SQL Database connection error at ${env.DB_HOST}:${env.DB_PORT}.\n` +
-        `Reason: ${errorMsg}\n` +
-        `BuildLink API will continue running in diagnostic/offline-ready mode.`
-    );
-    return dbState;
   }
+  return dbState;
 }
