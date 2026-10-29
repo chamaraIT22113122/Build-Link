@@ -216,10 +216,18 @@ export default function EngineerDetailsPage() {
       {/* Main Profile Card (Facebook Style Profile) */}
       <div className="card-primary p-6 sm:p-8 space-y-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-brand-border">
-          <div className="flex items-start sm:items-center gap-5">
-            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-tr from-brand-navy to-brand-blue text-white flex items-center justify-center font-black text-3xl shadow-lg shrink-0">
-              {engineer.displayName?.[0] || 'E'}
-            </div>
+          <div className="flex items-start sm:items-center gap-5 min-w-0">
+            {engineer.avatarUrl ? (
+              <img
+                src={engineer.avatarUrl}
+                alt={engineer.displayName}
+                className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover shadow-lg ring-4 ring-slate-100 shrink-0"
+              />
+            ) : (
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-tr from-brand-navy to-brand-blue text-white flex items-center justify-center font-black text-3xl shadow-lg shrink-0">
+                {(engineer.displayName || 'EN').replace(/^Eng\.\s*/i, '').substring(0, 2).toUpperCase()}
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-center gap-2">

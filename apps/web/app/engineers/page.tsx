@@ -316,114 +316,170 @@ function EngineersDirectoryContent() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {engineers.map((eng) => {
             const isConnected = connectedIds.has(eng.userId);
+            const cleanName = (eng.displayName || 'Engineer').replace(/^Eng\.\s*/i, '').trim();
+            const initials = cleanName
+              .split(' ')
+              .map((n) => n[0])
+              .join('')
+              .substring(0, 2)
+              .toUpperCase();
 
             return (
               <div
                 key={eng.id}
-                className="bg-white rounded-3xl border border-brand-border p-6 shadow-sm hover:shadow-lg transition-all flex flex-col justify-between group"
+                className="bg-white rounded-3xl border border-slate-200/90 overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between group"
               >
                 <div>
-                  {/* Top Profile Header */}
-                  <div className="flex items-start justify-between gap-3 mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-brand-navy to-brand-blue text-white flex items-center justify-center font-bold text-lg shadow-md shrink-0">
-                        {eng.displayName?.[0] || 'E'}
-                      </div>
-
-                      <div className="min-w-0">
-                        <Link
-                          href={`/engineers/${eng.id}`}
-                          className="text-base font-bold text-brand-navy hover:text-brand-blue transition-colors truncate block"
-                        >
-                          {eng.displayName}
-                        </Link>
-                        <p className="text-xs font-medium text-brand-blue truncate">{eng.title}</p>
-                      </div>
-                    </div>
-
+                  {/* Top LinkedIn-style Accent Banner */}
+                  <div className="h-16 bg-gradient-to-r from-brand-navy via-slate-800 to-brand-blue relative px-5 flex items-center justify-between">
+                    {eng.registrationNumber && (
+                      <span className="text-[10px] font-mono font-bold text-slate-200 bg-white/10 backdrop-blur-xs px-2.5 py-0.5 rounded-full border border-white/15">
+                        {eng.registrationNumber}
+                      </span>
+                    )}
                     {eng.verificationStatus === VerificationStatus.VERIFIED && (
-                      <span className="badge-verified flex items-center gap-1 shrink-0 text-[10px] py-0.5">
-                        <ShieldCheck className="w-3 h-3" /> Verified
+                      <span className="ml-auto inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-200 border border-emerald-400/30 backdrop-blur-xs">
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+                        <span>Verified</span>
                       </span>
                     )}
                   </div>
 
-                  {/* Rating & Experience */}
-                  <div className="flex items-center gap-4 text-xs mb-3">
-                    <div className="flex items-center gap-1 font-bold text-amber-600">
-                      <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-                      <span>{eng.ratingAverage > 0 ? eng.ratingAverage.toFixed(1) : 'New'}</span>
-                      <span className="text-brand-muted font-normal text-[11px]">
-                        ({eng.ratingCount} reviews)
-                      </span>
+                  <div className="px-6 pt-0 pb-4">
+                    {/* Avatar + Consultation Fee Row */}
+                    <div className="flex items-end justify-between -mt-8 mb-3">
+                      <Link href={`/engineers/${eng.id}`} className="relative shrink-0 group/avatar">
+                        {eng.avatarUrl ? (
+                          <img
+                            src={eng.avatarUrl}
+                            alt={eng.displayName}
+                            className="w-16 h-16 rounded-2xl object-cover ring-4 ring-white shadow-md bg-white"
+                          />
+                        ) : (
+                          <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-brand-navy to-brand-blue text-white flex items-center justify-center font-bold text-lg ring-4 ring-white shadow-md">
+                            {initials || 'EN'}
+                          </div>
+                        )}
+                        {eng.verificationStatus === VerificationStatus.VERIFIED && (
+                          <span
+                            className="absolute -bottom-1 -right-1 bg-brand-blue text-white p-1 rounded-full ring-2 ring-white shadow-xs"
+                            title="Verified Engineer"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                          </span>
+                        )}
+                      </Link>
+
+                      {eng.consultationFee > 0 && (
+                        <div className="text-right">
+                          <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold block">
+                            Consultation
+                          </span>
+                          <span className="text-xs font-extrabold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 inline-block">
+                            LKR {eng.consultationFee.toLocaleString()}
+                          </span>
+                        </div>
+                      )}
                     </div>
 
-                    <div className="flex items-center gap-1.5 text-brand-text">
-                      <Briefcase className="w-3.5 h-3.5 text-brand-blue" />
-                      <span>{eng.yearsOfExperience} yrs exp</span>
-                    </div>
-                  </div>
-
-                  {/* Location */}
-                  {(eng.district || eng.city) && (
-                    <p className="text-xs text-brand-muted flex items-center gap-1 mb-3">
-                      <MapPin className="w-3.5 h-3.5 text-brand-muted flex-shrink-0" />
-                      <span>{[eng.city, eng.district].filter(Boolean).join(', ')}</span>
-                    </p>
-                  )}
-
-                  {/* Specialization Tags */}
-                  <div className="flex flex-wrap gap-1.5 mb-4">
-                    {eng.specializations.slice(0, 3).map((spec, i) => (
-                      <span
-                        key={i}
-                        className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 text-brand-navy"
+                    {/* Name & Full Title (Never Overflows) */}
+                    <div className="min-w-0 mb-3">
+                      <Link
+                        href={`/engineers/${eng.id}`}
+                        className="text-base font-extrabold text-brand-navy group-hover:text-brand-blue transition-colors truncate block"
                       >
-                        {spec}
-                      </span>
-                    ))}
-                    {eng.specializations.length > 3 && (
-                      <span className="px-2 py-1 rounded-lg text-[10px] font-bold bg-slate-100 text-brand-muted">
-                        +{eng.specializations.length - 3} more
-                      </span>
+                        {eng.displayName}
+                      </Link>
+                      <p className="text-xs font-semibold text-brand-blue line-clamp-2 leading-snug mt-0.5 min-h-[2rem]">
+                        {eng.title}
+                      </p>
+                    </div>
+
+                    {/* Rating, Experience & Location */}
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs mb-3 pb-3 border-b border-slate-100">
+                      <div className="flex items-center gap-1 font-bold text-amber-600">
+                        <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400 shrink-0" />
+                        <span>{eng.ratingAverage > 0 ? eng.ratingAverage.toFixed(1) : 'New'}</span>
+                        <span className="text-slate-400 font-normal text-[11px]">
+                          ({eng.ratingCount})
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1 text-slate-600 font-medium">
+                        <Briefcase className="w-3.5 h-3.5 text-brand-blue shrink-0" />
+                        <span>{eng.yearsOfExperience} yrs exp</span>
+                      </div>
+
+                      {(eng.district || eng.city) && (
+                        <div className="flex items-center gap-1 text-slate-500 truncate max-w-full">
+                          <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                          <span className="truncate">{[eng.city, eng.district].filter(Boolean).join(', ')}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Bio snippet if available */}
+                    {eng.bio && (
+                      <p className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed mb-3">
+                        {eng.bio}
+                      </p>
                     )}
+
+                    {/* Specialization Tags */}
+                    <div className="flex flex-wrap gap-1.5">
+                      {eng.specializations.slice(0, 3).map((spec, i) => (
+                        <span
+                          key={i}
+                          className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200/60 truncate max-w-[180px]"
+                        >
+                          {spec}
+                        </span>
+                      ))}
+                      {eng.specializations.length > 3 && (
+                        <span className="px-2 py-1 rounded-lg text-[10px] font-bold bg-blue-50 text-brand-blue border border-blue-100">
+                          +{eng.specializations.length - 3} more
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                {/* Facebook-style Action Buttons (Message & Connect) */}
-                <div className="pt-4 border-t border-brand-border flex items-center gap-2">
+                {/* Action Buttons Footer */}
+                <div className="px-6 py-3.5 bg-slate-50/70 border-t border-slate-100 flex items-center gap-2">
                   <button
                     onClick={() => handleMessage(eng.userId)}
-                    className="flex-1 btn-primary text-xs font-bold py-2.5 gap-1.5 justify-center shadow-sm"
+                    className="flex-1 btn-primary text-xs font-bold py-2.5 px-3 gap-1.5 justify-center rounded-xl shadow-xs"
                   >
-                    <MessageCircle className="w-3.5 h-3.5" />
-                    Message
+                    <MessageCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>Message</span>
                   </button>
 
                   <button
                     onClick={() => handleConnect(eng.userId)}
                     disabled={isConnected || connectingId === eng.userId}
-                    className={`px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-all ${
+                    className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1 border transition-all shrink-0 ${
                       isConnected
                         ? 'bg-emerald-50 border-emerald-200 text-emerald-700 cursor-default'
-                        : 'bg-white border-brand-border text-brand-navy hover:bg-slate-50'
+                        : 'bg-white border-slate-200 text-brand-navy hover:bg-slate-100'
                     }`}
                   >
                     {isConnected ? (
                       <>
-                        <Check className="w-3.5 h-3.5 text-emerald-600" /> Connected
+                        <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span>Connected</span>
                       </>
                     ) : (
                       <>
-                        <UserPlus className="w-3.5 h-3.5 text-brand-muted" /> Add
+                        <UserPlus className="w-3.5 h-3.5 text-brand-blue shrink-0" />
+                        <span>Connect</span>
                       </>
                     )}
                   </button>
 
                   <Link
-                    href={`/engineers/${eng.id}`}
-                    className="px-3 py-2.5 rounded-xl text-xs font-bold text-brand-muted hover:text-brand-navy hover:bg-slate-100 transition-colors"
-                    title="View Profile"
+                    href={`/profile/${eng.userId}`}
+                    className="px-3 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:text-brand-blue hover:bg-white border border-transparent hover:border-slate-200 transition-all shrink-0"
+                    title="View Social Profile & Timeline"
                   >
                     Profile
                   </Link>
