@@ -86,45 +86,18 @@ function FeedContent() {
   // Groups list for sidebar & selector
   const [groups, setGroups] = useState<ConstructionGroupDto[]>([]);
 
-  // Online Contacts for Right Sidebar
-  const [onlineContacts] = useState([
-    {
-      id: 'eng-kasun',
-      name: 'Eng. Kasun Perera',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-      title: 'Structural Engineer (IESL)',
-      role: UserRole.ENGINEER,
-      isVerified: true,
-      district: 'Kandy',
-    },
-    {
-      id: 'arch-nimali',
-      name: 'Arch. Nimali Silva',
-      avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=150&q=80',
-      title: 'Chartered Architect',
-      role: UserRole.ENGINEER,
-      isVerified: true,
-      district: 'Galle',
-    },
-    {
-      id: 'eng-ruwan',
-      name: 'Eng. Ruwan Jayawardena',
-      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80',
-      title: 'Geotechnical & NBRO Specialist',
-      role: UserRole.ENGINEER,
-      isVerified: true,
-      district: 'Nuwara Eliya',
-    },
-    {
-      id: 'eng-dhanushka',
-      name: 'Eng. Dhanushka Bandara',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
-      title: 'Civil & Foundation Consultant',
-      role: UserRole.ENGINEER,
-      isVerified: true,
-      district: 'Colombo',
-    },
-  ]);
+  // Real Database Engineers for Right Sidebar
+  const [onlineContacts, setOnlineContacts] = useState<
+    Array<{
+      id: string;
+      name: string;
+      avatar: string;
+      title: string;
+      role: UserRole;
+      isVerified: boolean;
+      district: string;
+    }>
+  >([]);
 
   // New Post Form State
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -226,24 +199,42 @@ function FeedContent() {
     }
   };
 
-  // Load Stories & Groups
+  // Load Stories, Groups & Real Database Engineers
   useEffect(() => {
     const fetchStoriesAndGroups = async () => {
       try {
-        const [storiesRes, groupsRes] = await Promise.all([
+        const [storiesRes, groupsRes, engRes] = await Promise.all([
           fetch(`${apiUrl}/posts/stories`, { headers: token ? { Authorization: `Bearer ${token}` } : {} }),
           fetch(`${apiUrl}/posts/groups`, { headers: token ? { Authorization: `Bearer ${token}` } : {} }),
+          fetch(`${apiUrl}/engineers`),
         ]);
         const storiesData = await storiesRes.json();
         const groupsData = await groupsRes.json();
+        const engData = await engRes.json();
         if (storiesData.success && Array.isArray(storiesData.data)) {
           setStories(storiesData.data);
         }
         if (groupsData.success && Array.isArray(groupsData.data)) {
           setGroups(groupsData.data);
         }
+        if (engData.success && Array.isArray(engData.data)) {
+          setOnlineContacts(
+            engData.data.map((e: any) => ({
+              id: e.userId,
+              name: e.displayName,
+              avatar:
+                e.avatarUrl ||
+                'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+              title: e.title,
+              role: UserRole.ENGINEER,
+              isVerified: Boolean(e.isVerified),
+              district: e.district || 'Colombo',
+            }))
+          );
+        }
       } catch {
-        // Handled silently
+        // Retry once after 3s if backend is still initializing
+        setTimeout(fetchStoriesAndGroups, 3000);
       }
     };
 

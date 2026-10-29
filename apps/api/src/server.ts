@@ -6,17 +6,6 @@ import { seedDatabase } from './database/seed';
 async function bootstrap() {
   const app = createApp();
 
-  // Attempt database connection asynchronously
-  await initializeDatabase();
-
-  // Seed sample demonstration accounts and test fixtures
-  try {
-    await seedDatabase();
-  } catch (err) {
-    console.warn('[Seed] Warning during seed initialization:', err);
-  }
-
-
   const server = app.listen(env.PORT, () => {
     console.log(`=======================================================`);
     console.log(`🚀 BuildLink API server running on port ${env.PORT}`);
@@ -25,6 +14,14 @@ async function bootstrap() {
     console.log(`📖 Docs:     http://localhost:${env.PORT}${env.API_PREFIX}/docs`);
     console.log(`=======================================================`);
   });
+
+  // Connect to Azure SQL Database and verify seed data
+  await initializeDatabase();
+  try {
+    await seedDatabase();
+  } catch (err) {
+    console.warn('[Seed] Warning during seed initialization:', err);
+  }
 
   const shutdown = async () => {
     console.log('\nShutting down BuildLink API server gracefully...');
