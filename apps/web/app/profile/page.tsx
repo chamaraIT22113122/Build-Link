@@ -81,6 +81,9 @@ function ProfileContent() {
   // Timeline posts authored by user
   const [myPosts, setMyPosts] = useState<PostDto[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
+  const [networkPeers, setNetworkPeers] = useState<
+    Array<{ userId: string; name: string; title: string; district: string; avatar: string }>
+  >([]);
 
   // Alerts & Loading
   const [statusMessage, setStatusMessage] = useState<{
@@ -155,7 +158,31 @@ function ProfileContent() {
         setLoadingPosts(false);
       }
     };
+    const loadNetworkPeers = async () => {
+      try {
+        const res = await fetch(`${apiUrl}/engineers`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data)) {
+          setNetworkPeers(
+            data.data
+              .filter((e: any) => e.userId !== user.id)
+              .map((e: any) => ({
+                userId: e.userId,
+                name: e.displayName,
+                title: e.title || 'Chartered Engineer',
+                district: e.district || 'Colombo',
+                avatar:
+                  e.avatarUrl ||
+                  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+              }))
+          );
+        }
+      } catch {
+        // Handled silently
+      }
+    };
     loadUserPosts();
+    loadNetworkPeers();
   }, [user]);
 
   const handleSavePersonalInfo = async (e: React.FormEvent) => {
@@ -754,7 +781,7 @@ function ProfileContent() {
                 <div className="border-b border-brand-border/60 pb-3 flex items-center justify-between">
                   <div>
                     <h3 className="font-bold text-base text-brand-text">Professional Engineer Credentials</h3>
-                    <p className="text-xs text-brand-muted">License, IESL affiliation, and technical rates.</p>
+                    <p className="text-xs text-brand-muted">License, IESL affiliation, and free community mentorship.</p>
                   </div>
                   <button
                     type="submit"
@@ -796,13 +823,16 @@ function ProfileContent() {
                     />
                   </div>
                   <div>
-                    <label className="block font-bold text-brand-muted uppercase mb-1">Consultation Hourly Rate (LKR)</label>
-                    <input
-                      type="number"
-                      value={consultationFee}
-                      onChange={(e) => setConsultationFee(Number(e.target.value))}
-                      className="w-full bg-brand-bg text-brand-text rounded-xl px-3.5 py-2 border border-brand-border focus:outline-none"
-                    />
+                    <label className="block font-bold text-brand-muted uppercase mb-1">Community Mentorship Mode</label>
+                    <div className="w-full bg-emerald-50 text-emerald-700 font-bold rounded-xl px-3.5 py-2 border border-emerald-200 flex items-center justify-between">
+                      <span>✓ 100% Free Pro-Bono Consultation</span>
+                      <input
+                        type="checkbox"
+                        checked={availableForConsultation}
+                        onChange={(e) => setAvailableForConsultation(e.target.checked)}
+                        className="w-4 h-4 accent-emerald-600 rounded"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -879,34 +909,19 @@ function ProfileContent() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              {[
-                {
-                  name: 'Eng. Kasun Perera',
-                  title: 'Structural Engineer (IESL)',
-                  district: 'Kandy',
-                  avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-                },
-                {
-                  name: 'Arch. Nimali Silva',
-                  title: 'Chartered Architect',
-                  district: 'Galle',
-                  avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=150&q=80',
-                },
-                {
-                  name: 'Eng. Ruwan Jayawardena',
-                  title: 'NBRO Geotechnical Consultant',
-                  district: 'Nuwara Eliya',
-                  avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80',
-                },
-              ].map((conn, i) => (
-                <div key={i} className="bg-brand-bg border border-brand-border rounded-xl p-4 flex items-center space-x-3">
+              {networkPeers.map((conn, i) => (
+                <Link
+                  key={conn.userId || i}
+                  href={`/profile/${conn.userId}`}
+                  className="bg-brand-bg border border-brand-border hover:border-brand-primary rounded-xl p-4 flex items-center space-x-3 transition-all"
+                >
                   <img src={conn.avatar} alt={conn.name} className="w-12 h-12 rounded-full object-cover ring-2 ring-brand-border" />
                   <div className="min-w-0 flex-1">
                     <p className="font-bold text-xs text-brand-text truncate">{conn.name}</p>
                     <p className="text-[10px] text-brand-muted truncate">{conn.title}</p>
-                    <p className="text-[9px] text-emerald-500 font-semibold">📍 {conn.district}</p>
+                    <p className="text-[9px] text-emerald-600 font-semibold">📍 {conn.district} • Free Advice</p>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           </div>

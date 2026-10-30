@@ -47,3 +47,4 @@ process.on('SIGTERM', () => {
   apiProcess.kill('SIGTERM');
   webProcess.kill('SIGTERM');
 });
+

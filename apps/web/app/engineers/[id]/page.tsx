@@ -42,6 +42,14 @@ export default function EngineerDetailsPage() {
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [reviewError, setReviewError] = useState('');
 
+  // Free Consultation Request Modal State
+  const [showConsultModal, setShowConsultModal] = useState(false);
+  const [consultTopic, setConsultTopic] = useState('Structural Crack / Beam Assessment');
+  const [consultSiteLocation, setConsultSiteLocation] = useState('Colombo');
+  const [consultMessage, setConsultMessage] = useState('');
+  const [isSendingConsult, setIsSendingConsult] = useState(false);
+  const [consultSentSuccess, setConsultSentSuccess] = useState(false);
+
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050/api/v1';
 
   const fetchEngineerData = async () => {
@@ -131,6 +139,43 @@ export default function EngineerDetailsPage() {
       return;
     }
     router.push(`/messages?userId=${engineer?.userId}`);
+  };
+
+  const handleSendFreeConsultation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token || !engineer?.userId) {
+      router.push(`/login?redirect=/engineers/${engineerId}`);
+      return;
+    }
+    if (!consultMessage.trim()) return;
+
+    setIsSendingConsult(true);
+    try {
+      const formattedContent = `📋 [FREE CONSULTATION REQUEST — ${consultTopic}]\n📍 Site Location: ${consultSiteLocation}\n\n${consultMessage.trim()}`;
+      await fetch(`${apiUrl}/messages/send/${engineer.userId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ content: formattedContent }),
+      });
+      await fetch(`${apiUrl}/messages/connect/${engineer.userId}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() => {});
+      setIsConnected(true);
+      setConsultSentSuccess(true);
+      setTimeout(() => {
+        setShowConsultModal(false);
+        setConsultSentSuccess(false);
+        setConsultMessage('');
+      }, 1500);
+    } catch {
+      // ignore
+    } finally {
+      setIsSendingConsult(false);
+    }
   };
 
   const handleSubmitReview = async (e: React.FormEvent) => {
@@ -237,6 +282,9 @@ export default function EngineerDetailsPage() {
                 <span className="badge-verified flex items-center gap-1">
                   <ShieldCheck className="w-3.5 h-3.5" /> Verified IESL / CIDA
                 </span>
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Free Community Consultation
+                </span>
               </div>
 
               <p className="text-sm font-bold text-brand-blue">{engineer.title}</p>
@@ -263,20 +311,31 @@ export default function EngineerDetailsPage() {
             </div>
           </div>
 
-          {/* Facebook-style Direct Actions */}
-          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          {/* LinkedIn-style Direct Actions (100% Free) */}
+          <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+            <button
+              onClick={() => {
+                if (!token) router.push(`/login?redirect=/engineers/${engineerId}`);
+                else setShowConsultModal(true);
+              }}
+              className="btn-primary text-xs sm:text-sm font-bold px-5 py-3 shadow-md gap-2"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              Request Free Advice
+            </button>
+
             <button
               onClick={handleMessage}
-              className="btn-primary text-sm font-bold px-6 py-3 shadow-md gap-2"
+              className="px-4 py-3 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 bg-brand-navy hover:bg-slate-800 text-white shadow-xs transition-all"
             >
               <MessageCircle className="w-4 h-4" />
-              Message Engineer
+              Message
             </button>
 
             <button
               onClick={handleConnect}
               disabled={isConnected || isConnecting}
-              className={`px-5 py-3 rounded-xl text-sm font-bold flex items-center gap-2 border transition-all ${
+              className={`px-4 py-3 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 border transition-all ${
                 isConnected
                   ? 'bg-emerald-50 border-emerald-200 text-emerald-700 cursor-default'
                   : 'bg-white border-brand-border text-brand-navy hover:bg-slate-50'
@@ -288,18 +347,58 @@ export default function EngineerDetailsPage() {
                 </>
               ) : (
                 <>
-                  <UserPlus className="w-4 h-4 text-brand-muted" /> Add / Connect
+                  <UserPlus className="w-4 h-4 text-brand-blue" /> Connect
                 </>
               )}
             </button>
 
             <Link
               href={`/profile/${engineer.userId}`}
-              className="px-5 py-3 rounded-xl text-sm font-bold flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 transition-all"
+              className="px-4 py-3 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 transition-all"
             >
-              Timeline & Photos →
+              LinkedIn Profile →
             </Link>
           </div>
+        </div>
+
+        {/* LinkedIn "Open to Help Homeowners" Pro-Bono Volunteering Strip */}
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50/60 to-blue-50/50 border border-emerald-200/90 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-600 text-white shadow-2xs">
+                <CheckCircle2 className="w-3 h-3" /> #OPENTOHELP • 100% FREE PRO-BONO
+              </span>
+              <span className="text-xs font-bold text-brand-navy">
+                Volunteering for Free Homeowner & Builder Guidance
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 pt-0.5">
+              {[
+                '✓ Free Blueprint & Floor Plan Review',
+                '✓ Free Structural Crack & Seepage Diagnosis',
+                '✓ Free SLS / NBRO / CIDA Standards Advice',
+                '✓ Free Homeowner & Student Mentoring',
+              ].map((badge, idx) => (
+                <span
+                  key={idx}
+                  className="text-[11px] font-semibold text-emerald-900 bg-white/95 px-2.5 py-1 rounded-lg border border-emerald-200/80 shadow-2xs"
+                >
+                  {badge}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (!token) router.push(`/login?redirect=/engineers/${engineerId}`);
+              else setShowConsultModal(true);
+            }}
+            className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs shrink-0 transition-all"
+          >
+            Ask Free Question →
+          </button>
         </div>
 
         {/* Credentials & Details Grid */}
@@ -531,6 +630,112 @@ export default function EngineerDetailsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Free Technical Consultation Request Modal */}
+      {showConsultModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white text-slate-900 rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-200 space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-brand-border">
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold mb-1">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  100% Free Community Consultation • No Fees
+                </div>
+                <h3 className="text-lg font-bold text-brand-navy">
+                  Request Free Advice from {engineer.displayName}
+                </h3>
+                <p className="text-xs text-brand-muted">
+                  Describe your site challenge, structural question, or blueprint review need.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowConsultModal(false)}
+                className="text-brand-muted hover:text-brand-navy font-bold text-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            {consultSentSuccess ? (
+              <div className="py-8 text-center space-y-3">
+                <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto" />
+                <h4 className="text-base font-bold text-brand-navy">
+                  Free Consultation Request Sent!
+                </h4>
+                <p className="text-xs text-brand-muted">
+                  Your message has been delivered directly to {engineer.displayName}&apos;s inbox and you are now connected.
+                </p>
+              </div>
+            ) : (
+              <form onSubmit={handleSendFreeConsultation} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-brand-navy uppercase tracking-wider mb-1">
+                      Consultation Topic
+                    </label>
+                    <select
+                      value={consultTopic}
+                      onChange={(e) => setConsultTopic(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl border border-brand-border text-xs text-brand-navy bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                    >
+                      <option value="Structural Crack / Beam Assessment">Structural Crack / Beam Assessment</option>
+                      <option value="Foundation & Soil / NBRO Slope Advice">Foundation & Soil / NBRO Slope Advice</option>
+                      <option value="Blueprint & Floor Plan Review">Blueprint & Floor Plan Review</option>
+                      <option value="Slab Waterproofing & Seepage">Slab Waterproofing & Seepage</option>
+                      <option value="BOQ & Material Estimation Guidance">BOQ & Material Estimation Guidance</option>
+                      <option value="Electrical / Solar PV / MEP Guidance">Electrical / Solar PV / MEP Guidance</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-brand-navy uppercase tracking-wider mb-1">
+                      Your Site District
+                    </label>
+                    <input
+                      type="text"
+                      value={consultSiteLocation}
+                      onChange={(e) => setConsultSiteLocation(e.target.value)}
+                      placeholder="e.g., Kandy, Colombo, Galle"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-brand-border text-xs text-brand-navy bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-brand-navy uppercase tracking-wider mb-1">
+                    Describe Your Construction Question *
+                  </label>
+                  <textarea
+                    rows={4}
+                    required
+                    value={consultMessage}
+                    onChange={(e) => setConsultMessage(e.target.value)}
+                    placeholder="Explain your building issue, dimensions, soil condition, or what guidance you need from the engineer..."
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-brand-border text-xs text-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-3 border-t border-brand-border">
+                  <button
+                    type="button"
+                    onClick={() => setShowConsultModal(false)}
+                    className="btn-secondary text-xs"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSendingConsult || !consultMessage.trim()}
+                    className="btn-primary text-xs font-bold px-5 py-2.5"
+                  >
+                    {isSendingConsult ? 'Sending Request...' : 'Send Free Request'}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

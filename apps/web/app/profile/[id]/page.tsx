@@ -141,6 +141,8 @@ export default function UserProfileTimelinePage() {
   const [activeTab, setActiveTab] = useState<'timeline' | 'photos' | 'about' | 'connections'>('timeline');
   const [isConnected, setIsConnected] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
+  const [endorsedComments, setEndorsedComments] = useState<Set<string>>(new Set());
+  const [endorsedSkills, setEndorsedSkills] = useState<Set<string>>(new Set());
   const [peerConnections, setPeerConnections] = useState<
     Array<{ userId: string; name: string; title: string; district: string; avatarUrl?: string; isVerified?: boolean }>
   >([]);
@@ -459,15 +461,21 @@ export default function UserProfileTimelinePage() {
 
                 {/* Name, Headline & Location */}
                 <div className="space-y-1">
-                  <div className="flex items-center justify-center md:justify-start space-x-2">
+                  <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
                     <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
                       {name}
                     </h1>
                     {isVerified && (
-                      <span className="bg-blue-50 text-blue-600 text-xs px-2.5 py-0.5 rounded-full font-bold flex items-center space-x-1 border border-blue-200">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Verified Pro</span>
-                      </span>
+                      <>
+                        <span className="bg-blue-50 text-blue-600 text-xs px-2.5 py-0.5 rounded-full font-bold flex items-center space-x-1 border border-blue-200">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Verified Pro</span>
+                        </span>
+                        <span className="bg-emerald-50 text-emerald-700 text-xs px-2.5 py-0.5 rounded-full font-bold flex items-center space-x-1 border border-emerald-200">
+                          <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>#OpenToHelp • Free Advice</span>
+                        </span>
+                      </>
                     )}
                   </div>
 
@@ -627,6 +635,48 @@ export default function UserProfileTimelinePage() {
                 </>
               )}
             </div>
+
+            {/* LinkedIn "Open to Help Homeowners" Pro-Bono Volunteering Banner */}
+            {profileUser?.role === UserRole.ENGINEER && (
+              <div className="mt-4 p-4 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50/60 to-blue-50/50 border border-emerald-200/90 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-600 text-white shadow-2xs">
+                      <CheckCircle2 className="w-3 h-3" /> OPEN TO HELP HOMEOWNERS • 100% FREE
+                    </span>
+                    <span className="text-xs font-bold text-slate-800">
+                      Pro-Bono Community Engineering Mentor
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                    {[
+                      '✓ Free Blueprint & Floor Plan Feedback',
+                      '✓ Free Structural Crack & Seepage Diagnosis',
+                      '✓ Free NBRO / SLS Code Guidance',
+                      '✓ Free Homeowner & Student Mentoring',
+                    ].map((badge, bIdx) => (
+                      <span
+                        key={bIdx}
+                        className="text-[11px] font-semibold text-emerald-900 bg-white/90 px-2.5 py-1 rounded-lg border border-emerald-200/80 shadow-2xs"
+                      >
+                        {badge}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {!isOwnProfile && (
+                  <button
+                    type="button"
+                    onClick={handleOpenMessenger}
+                    className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm flex items-center gap-1.5 shrink-0 transition-all"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    <span>Ask Free Question</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {/* ========================================================
@@ -750,6 +800,60 @@ export default function UserProfileTimelinePage() {
                     Edit Details
                   </button>
                 )}
+              </div>
+
+              {/* LinkedIn-Style Skills & Community Endorsements Card */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Award className="w-4 h-4 text-amber-500" />
+                    <h4 className="font-extrabold text-sm text-slate-900">Skills & Endorsements</h4>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                    Peer Endorsed
+                  </span>
+                </div>
+
+                <div className="space-y-2 divide-y divide-slate-100">
+                  {(profileUser?.engineerProfile?.specializations || [
+                    'Structural Foundation Design',
+                    'SLS 1253 Concrete Curing',
+                    'NBRO Slope Safety & Retaining Walls',
+                    'Blueprint & Floor Plan Assessment',
+                  ]).map((skill, idx) => {
+                    const isSkillEndorsed = endorsedSkills.has(skill);
+                    const count = 18 - idx * 3 + (isSkillEndorsed ? 1 : 0);
+                    return (
+                      <div key={skill} className="pt-2 first:pt-0 flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-900 truncate">{skill}</p>
+                          <p className="text-[10px] text-slate-500 font-medium">
+                            🏅 {count} endorsements from builders & engineers
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEndorsedSkills((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(skill)) next.delete(skill);
+                              else next.add(skill);
+                              return next;
+                            })
+                          }
+                          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border shrink-0 transition-all ${
+                            isSkillEndorsed
+                              ? 'bg-emerald-600 text-white border-emerald-600'
+                              : 'bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-blue-600 border-slate-200'
+                          }`}
+                        >
+                          {isSkillEndorsed ? '✓ Endorsed' : '+ Endorse'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Featured Photos Mini Grid (3x3 Facebook style) */}
@@ -1004,17 +1108,64 @@ export default function UserProfileTimelinePage() {
                             ) : expandedComments[post.id].length === 0 ? (
                               <p className="text-center text-xs text-slate-400 py-1">No comments yet.</p>
                             ) : (
-                              expandedComments[post.id].map((c) => (
-                                <div key={c.id} className="flex items-start space-x-2 text-xs">
-                                  <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-[9px] flex-shrink-0 mt-0.5">
-                                    {c.author.displayName.substring(0, 2).toUpperCase()}
+                              expandedComments[post.id].map((c) => {
+                                const isEndorsed = endorsedComments.has(c.id);
+                                const baseEndorsements = c.author.isVerifiedEngineer
+                                  ? (c.id.charCodeAt(0) % 5) + 3
+                                  : 0;
+                                const totalEndorsements = baseEndorsements + (isEndorsed ? 1 : 0);
+
+                                return (
+                                  <div key={c.id} className="flex items-start space-x-2 text-xs">
+                                    <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-[9px] flex-shrink-0 mt-0.5">
+                                      {c.author.displayName.substring(0, 2).toUpperCase()}
+                                    </div>
+                                    <div className="flex-1 space-y-1">
+                                      <div
+                                        className={`rounded-xl px-3 py-2 space-y-0.5 ${
+                                          c.author.isVerifiedEngineer
+                                            ? 'bg-emerald-50/60 border-l-4 border-l-emerald-500 border border-emerald-200'
+                                            : 'bg-white border border-slate-200'
+                                        }`}
+                                      >
+                                        <div className="flex items-center justify-between gap-1">
+                                          <div className="flex items-center gap-1">
+                                            <span className="font-bold text-slate-900">{c.author.displayName}</span>
+                                            {c.author.isVerifiedEngineer && (
+                                              <span className="text-[10px] font-bold text-blue-600 flex items-center">
+                                                <ShieldCheck className="w-3 h-3 mr-0.5" />
+                                                Verified Solution
+                                              </span>
+                                            )}
+                                          </div>
+                                          {c.author.isVerifiedEngineer && (
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                setEndorsedComments((prev) => {
+                                                  const next = new Set(prev);
+                                                  if (next.has(c.id)) next.delete(c.id);
+                                                  else next.add(c.id);
+                                                  return next;
+                                                })
+                                              }
+                                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 transition-all ${
+                                                isEndorsed
+                                                  ? 'bg-emerald-600 text-white'
+                                                  : 'bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                                              }`}
+                                            >
+                                              <Award className="w-3 h-3" />
+                                              <span>{isEndorsed ? 'Endorsed' : 'Endorse'} ({totalEndorsements})</span>
+                                            </button>
+                                          )}
+                                        </div>
+                                        <p className="text-slate-700 text-xs">{c.content}</p>
+                                      </div>
+                                    </div>
                                   </div>
-                                  <div className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 flex-1 space-y-0.5">
-                                    <span className="font-bold text-slate-900">{c.author.displayName}</span>
-                                    <p className="text-slate-700 text-xs">{c.content}</p>
-                                  </div>
-                                </div>
-                              ))
+                                );
+                              })
                             )}
                           </div>
                         </div>
@@ -1118,26 +1269,53 @@ export default function UserProfileTimelinePage() {
                 </div>
               </div>
 
-              {/* Specializations Card */}
+              {/* Specializations & LinkedIn Skill Endorsements Card */}
               <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 space-y-3">
                 <h4 className="font-extrabold text-xs text-slate-800 uppercase tracking-wider flex items-center space-x-2">
                   <Award className="w-4 h-4 text-amber-500" />
-                  <span>Specializations</span>
+                  <span>Specializations & Skill Endorsements</span>
                 </h4>
 
-                <div className="flex flex-wrap gap-2">
+                <div className="space-y-2">
                   {(profileUser?.engineerProfile?.specializations || [
                     'Structural Design',
                     'Foundation Engineering',
                     'Building Approval Submissions',
-                  ]).map((spec, i) => (
-                    <span
-                      key={i}
-                      className="px-3 py-1 bg-white border border-slate-200 rounded-full text-xs font-semibold text-slate-800 shadow-sm"
-                    >
-                      {spec}
-                    </span>
-                  ))}
+                  ]).map((spec, i) => {
+                    const isSkillEndorsed = endorsedSkills.has(spec);
+                    const count = 22 - i * 4 + (isSkillEndorsed ? 1 : 0);
+                    return (
+                      <div
+                        key={i}
+                        className="p-2.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between gap-2 shadow-2xs"
+                      >
+                        <div>
+                          <span className="text-xs font-bold text-slate-900 block">{spec}</span>
+                          <span className="text-[10px] text-emerald-700 font-semibold">
+                            🏅 {count} Community Endorsements
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEndorsedSkills((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(spec)) next.delete(spec);
+                              else next.add(spec);
+                              return next;
+                            })
+                          }
+                          className={`px-3 py-1 rounded-lg text-[11px] font-bold border transition-all ${
+                            isSkillEndorsed
+                              ? 'bg-emerald-600 text-white border-emerald-600'
+                              : 'bg-slate-50 hover:bg-blue-50 text-slate-800 border-slate-200'
+                          }`}
+                        >
+                          {isSkillEndorsed ? '✓ Endorsed' : '+ Endorse Skill'}
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>

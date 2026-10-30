@@ -33,6 +33,7 @@ export const Navbar: React.FC = () => {
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   const [isCreateDropdownOpen, setIsCreateDropdownOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(4);
   const [searchQuery, setSearchQuery] = useState('');
 
   const pathname = usePathname();
@@ -256,59 +257,114 @@ export const Navbar: React.FC = () => {
                     }`}
                   >
                     <Bell className="w-5 h-5 stroke-[2px]" />
-                    <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center ring-2 ring-white">
-                      3
-                    </span>
+                    {unreadNotificationsCount > 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center ring-2 ring-white">
+                        {unreadNotificationsCount}
+                      </span>
+                    )}
                   </button>
 
                   {isNotificationsOpen && (
                     <div
                       onMouseLeave={() => setIsNotificationsOpen(false)}
-                      className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 py-3 z-50 animate-fadeIn"
+                      className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-slate-200 py-3 z-50 animate-fadeIn"
                     >
-                      <div className="px-4 pb-2 border-b border-slate-100 flex items-center justify-between">
-                        <p className="text-sm font-bold text-slate-900">Notifications</p>
-                        <span className="text-[11px] text-blue-600 font-semibold cursor-pointer hover:underline">
+                      <div className="px-4 pb-2.5 border-b border-slate-100 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-extrabold text-slate-900">Notifications</p>
+                          {unreadNotificationsCount > 0 && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-600">
+                              {unreadNotificationsCount} new
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setUnreadNotificationsCount(0)}
+                          className="text-[11px] text-blue-600 font-bold cursor-pointer hover:underline"
+                        >
                           Mark all as read
-                        </span>
+                        </button>
                       </div>
 
-                      <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
-                        <div className="p-3 hover:bg-slate-50 transition-colors flex items-start space-x-3 cursor-pointer">
-                          <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs flex-shrink-0">
-                            KP
+                      <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto">
+                        <Link
+                          href="/feed?type=QUESTION"
+                          onClick={() => {
+                            setIsNotificationsOpen(false);
+                            setUnreadNotificationsCount((c) => Math.max(0, c - 1));
+                          }}
+                          className="p-3 hover:bg-slate-50 transition-colors flex items-start space-x-3 cursor-pointer"
+                        >
+                          <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs flex-shrink-0">
+                            KS
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-xs text-slate-800 leading-snug">
-                              <span className="font-bold">Eng. Kasun Perera</span> reacted ❤️ to your site milestone.
+                              <span className="font-bold">Eng. Kamal Silva</span> posted a pro-bono IESL solution on <span className="font-semibold">Raft Foundation Curing</span>.
                             </p>
-                            <span className="text-[10px] text-slate-400 mt-0.5 block">10m ago</span>
+                            <span className="text-[10px] text-emerald-600 font-semibold mt-0.5 block">
+                              ✓ Free Engineer Answer • 8m ago
+                            </span>
                           </div>
-                        </div>
+                        </Link>
 
-                        <div className="p-3 hover:bg-slate-50 transition-colors flex items-start space-x-3 cursor-pointer">
-                          <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-xs flex-shrink-0">
+                        <Link
+                          href="/engineers"
+                          onClick={() => {
+                            setIsNotificationsOpen(false);
+                            setUnreadNotificationsCount((c) => Math.max(0, c - 1));
+                          }}
+                          className="p-3 hover:bg-slate-50 transition-colors flex items-start space-x-3 cursor-pointer"
+                        >
+                          <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs flex-shrink-0">
+                            AW
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-slate-800 leading-snug">
+                              <span className="font-bold">Eng. Anura Wickramasinghe</span> (NBRO Specialist) is now <span className="font-semibold text-emerald-700">#OpenToHelp</span> for free slope stability Q&A.
+                            </p>
+                            <span className="text-[10px] text-slate-400 mt-0.5 block">25m ago</span>
+                          </div>
+                        </Link>
+
+                        <Link
+                          href="/groups"
+                          onClick={() => {
+                            setIsNotificationsOpen(false);
+                            setUnreadNotificationsCount((c) => Math.max(0, c - 1));
+                          }}
+                          className="p-3 hover:bg-slate-50 transition-colors flex items-start space-x-3 cursor-pointer"
+                        >
+                          <div className="w-9 h-9 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-xs flex-shrink-0">
                             🏗️
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-xs text-slate-800 leading-snug">
-                              New post in <span className="font-bold">Colombo Civil Builders & Contractors</span>.
+                              New blueprint discussion in <span className="font-bold">Sri Lanka Structural Engineers Hub</span>.
                             </p>
                             <span className="text-[10px] text-slate-400 mt-0.5 block">1h ago</span>
                           </div>
-                        </div>
+                        </Link>
 
-                        <div className="p-3 hover:bg-slate-50 transition-colors flex items-start space-x-3 cursor-pointer">
-                          <div className="w-9 h-9 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center font-bold text-xs flex-shrink-0">
-                            ⭐
+                        <Link
+                          href="/feed"
+                          onClick={() => {
+                            setIsNotificationsOpen(false);
+                            setUnreadNotificationsCount(0);
+                          }}
+                          className="p-3 hover:bg-slate-50 transition-colors flex items-start space-x-3 cursor-pointer"
+                        >
+                          <div className="w-9 h-9 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-xs flex-shrink-0">
+                            🎙️
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-xs text-slate-800 leading-snug">
-                              Your engineer verification audit status was marked <span className="font-bold text-emerald-600">Active</span>.
+                              Live Free Q&A Session: <span className="font-bold">Monsoon Slab Waterproofing</span> starts this Saturday.
                             </p>
-                            <span className="text-[10px] text-slate-400 mt-0.5 block">Yesterday</span>
+                            <span className="text-[10px] text-blue-600 font-semibold mt-0.5 block">RSVP Free on Feed</span>
                           </div>
-                        </div>
+                        </Link>
                       </div>
                     </div>
                   )}

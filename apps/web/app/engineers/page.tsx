@@ -186,17 +186,17 @@ function EngineersDirectoryContent() {
       {/* Header Banner */}
       <div className="bg-gradient-to-r from-brand-navy via-slate-900 to-brand-blue rounded-3xl p-6 sm:p-10 text-white relative overflow-hidden shadow-xl">
         <div className="relative z-10 max-w-2xl space-y-3">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 border border-white/20 text-xs font-bold text-amber-300 shadow-xs">
-            <ShieldCheck className="w-4 h-4 text-brand-orange" />
-            <span>Verified Sri Lankan Construction Engineers</span>
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 border border-white/20 text-xs font-bold text-emerald-300 shadow-xs">
+            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <span>100% Free Community Consultation • Verified IESL & CIDA Engineers</span>
           </div>
 
           <h1 className="text-2xl sm:text-4xl font-black tracking-tight">
-            Find & Connect with Engineers
+            Professional Engineer Network
           </h1>
 
           <p className="text-sm text-slate-300 leading-relaxed">
-            Directly connect with certified structural, geotechnical, and MEP engineers across Sri Lanka. Message them freely with your site photos, drawings, and queries like Messenger.
+            Connect directly with chartered structural, geotechnical, MEP, and civil engineers across Sri Lanka. Build your professional network, share site drawings, and receive free expert guidance with zero consultation fees.
           </p>
         </div>
       </div>
@@ -346,7 +346,7 @@ function EngineersDirectoryContent() {
                   </div>
 
                   <div className="px-6 pt-0 pb-4">
-                    {/* Avatar + Consultation Fee Row */}
+                    {/* Avatar + Free Pro-Bono Badge Row */}
                     <div className="flex items-end justify-between -mt-8 mb-3">
                       <Link href={`/engineers/${eng.id}`} className="relative shrink-0 group/avatar">
                         {eng.avatarUrl ? (
@@ -370,16 +370,15 @@ function EngineersDirectoryContent() {
                         )}
                       </Link>
 
-                      {eng.consultationFee > 0 && (
-                        <div className="text-right">
-                          <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold block">
-                            Consultation
-                          </span>
-                          <span className="text-xs font-extrabold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 inline-block">
-                            LKR {eng.consultationFee.toLocaleString()}
-                          </span>
-                        </div>
-                      )}
+                      <div className="text-right">
+                        <span className="text-[10px] uppercase tracking-wider text-emerald-600 font-extrabold block">
+                          #OpenToHelp
+                        </span>
+                        <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 inline-flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                          Free Blueprint & Site Q&A
+                        </span>
+                      </div>
                     </div>
 
                     {/* Name & Full Title (Never Overflows) */}

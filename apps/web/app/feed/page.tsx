@@ -48,6 +48,9 @@ import {
   BookOpen,
   MessageCircle,
   Heart,
+  UserPlus,
+  Check,
+  Briefcase,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -90,14 +93,19 @@ function FeedContent() {
   const [onlineContacts, setOnlineContacts] = useState<
     Array<{
       id: string;
+      engineerProfileId?: string;
       name: string;
       avatar: string;
       title: string;
       role: UserRole;
       isVerified: boolean;
       district: string;
+      yearsOfExperience?: number;
+      registrationBody?: string;
     }>
   >([]);
+  const [connectedIds, setConnectedIds] = useState<Set<string>>(new Set());
+  const [connectingId, setConnectingId] = useState<string | null>(null);
 
   // New Post Form State
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -107,6 +115,16 @@ function FeedContent() {
   const [postType, setPostType] = useState<PostType>(PostType.GENERAL);
   const [postLocationTag, setPostLocationTag] = useState<string>('Colombo');
   const [selectedGroupId, setSelectedGroupId] = useState<string>('');
+  const [taggedEngineerSpecialty, setTaggedEngineerSpecialty] = useState<string>('');
+  const [includePoll, setIncludePoll] = useState<boolean>(false);
+  const [pollOption1, setPollOption1] = useState<string>('Ready-Mix Concrete (SLS 1253 Grade 30)');
+  const [pollOption2, setPollOption2] = useState<string>('Site-Mixed Concrete with Waterproof Admixture');
+  const [pollOption3, setPollOption3] = useState<string>('Consult Structural Engineer Before Pouring');
+  const [userPollVotes, setUserPollVotes] = useState<Record<string, number>>({});
+  const [featuredPollVote, setFeaturedPollVote] = useState<number | null>(null);
+  const [repostTargetPost, setRepostTargetPost] = useState<PostDto | null>(null);
+  const [repostComment, setRepostComment] = useState<string>('');
+  const [isReposting, setIsReposting] = useState<boolean>(false);
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [isSubmittingPost, setIsSubmittingPost] = useState(false);
@@ -115,6 +133,7 @@ function FeedContent() {
   const [expandedComments, setExpandedComments] = useState<Record<string, CommentDto[]>>({});
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [loadingComments, setLoadingComments] = useState<Record<string, boolean>>({});
+  const [endorsedComments, setEndorsedComments] = useState<Set<string>>(new Set());
 
   // Active hover reaction dock popover: postId
   const [hoveredReactionPostId, setHoveredReactionPostId] = useState<string | null>(null);
@@ -126,6 +145,17 @@ function FeedContent() {
 
   // Bookmarked posts set
   const [bookmarkedPosts, setBookmarkedPosts] = useState<Set<string>>(new Set());
+
+  // LinkedIn Live / Audio Q&A Events RSVP State (Batch C Item 4)
+  const [rsvpedSessions, setRsvpedSessions] = useState<Set<string>>(new Set());
+  const toggleRsvpSession = (sessionId: string) => {
+    setRsvpedSessions((prev) => {
+      const next = new Set(prev);
+      if (next.has(sessionId)) next.delete(sessionId);
+      else next.add(sessionId);
+      return next;
+    });
+  };
 
   // Listen for global navbar & bottom nav create events
   useEffect(() => {
@@ -164,6 +194,18 @@ function FeedContent() {
     });
   };
 
+  const toggleEndorseComment = (commentId: string) => {
+    setEndorsedComments((prev) => {
+      const next = new Set(prev);
+      if (next.has(commentId)) {
+        next.delete(commentId);
+      } else {
+        next.add(commentId);
+      }
+      return next;
+    });
+  };
+
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050/api/v1';
 
   // Read URL params
@@ -179,7 +221,7 @@ function FeedContent() {
     setLoading(true);
     try {
       const queryParts: string[] = [];
-      if (selectedType !== 'ALL') queryParts.push(`postType=${selectedType}`);
+      if (selectedType !== 'ALL' && selectedType !== 'SAVED') queryParts.push(`postType=${selectedType}`);
       if (selectedCategory !== 'ALL') queryParts.push(`category=${encodeURIComponent(selectedCategory)}`);
       if (searchQuery.trim()) queryParts.push(`search=${encodeURIComponent(searchQuery.trim())}`);
 
@@ -221,16 +263,28 @@ function FeedContent() {
           setOnlineContacts(
             engData.data.map((e: any) => ({
               id: e.userId,
+              engineerProfileId: e.id,
               name: e.displayName,
               avatar:
                 e.avatarUrl ||
                 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-              title: e.title,
+              title: e.title || 'Chartered Construction Engineer',
               role: UserRole.ENGINEER,
               isVerified: Boolean(e.isVerified),
               district: e.district || 'Colombo',
+              yearsOfExperience: e.yearsOfExperience || 10,
+              registrationBody: e.registrationBody || 'IESL',
             }))
           );
+        }
+        if (token) {
+          const connRes = await fetch(`${apiUrl}/messages/connections`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const connData = await connRes.json();
+          if (connData.success && Array.isArray(connData.data)) {
+            setConnectedIds(new Set(connData.data.map((c: any) => c.connectedUserId)));
+          }
         }
       } catch {
         // Retry once after 3s if backend is still initializing
@@ -258,6 +312,29 @@ function FeedContent() {
       },
     });
     window.dispatchEvent(event);
+  };
+
+  // LinkedIn-style 1-Click Connect from Sidebar
+  const handleConnectContact = async (targetUserId: string) => {
+    if (!token) {
+      router.push('/login?redirect=/feed');
+      return;
+    }
+    setConnectingId(targetUserId);
+    try {
+      const res = await fetch(`${apiUrl}/messages/connect/${targetUserId}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setConnectedIds((prev) => new Set(prev).add(targetUserId));
+      }
+    } catch {
+      // ignore
+    } finally {
+      setConnectingId(null);
+    }
   };
 
   // Handle Image Upload for New Post
@@ -304,6 +381,14 @@ function FeedContent() {
 
     try {
       const selectedGroup = groups.find((g) => g.id === selectedGroupId);
+      const pollTag =
+        includePoll && pollOption1.trim() && pollOption2.trim()
+          ? `\n\n[POLL: ${[pollOption1.trim(), pollOption2.trim(), pollOption3.trim()].filter(Boolean).join(' | ')}]`
+          : '';
+      const baseWithPoll = `${postContent.trim()}${pollTag}`;
+      const finalContent = taggedEngineerSpecialty
+        ? `🔔 [Tagged for Free Engineer Review: ${taggedEngineerSpecialty}]\n\n${baseWithPoll}`
+        : baseWithPoll;
 
       const res = await fetch(`${apiUrl}/posts`, {
         method: 'POST',
@@ -313,7 +398,7 @@ function FeedContent() {
         },
         body: JSON.stringify({
           title: postTitle.trim(),
-          content: postContent.trim(),
+          content: finalContent,
           category: postCategory,
           postType,
           mediaUrls,
@@ -331,6 +416,8 @@ function FeedContent() {
         setPostContent('');
         setMediaUrls([]);
         setSelectedGroupId('');
+        setTaggedEngineerSpecialty('');
+        setIncludePoll(false);
       } else {
         alert(data.error?.message || 'Failed to create post.');
       }
@@ -338,6 +425,53 @@ function FeedContent() {
       alert('Network error while publishing post.');
     } finally {
       setIsSubmittingPost(false);
+    }
+  };
+
+  // LinkedIn-style Repost to Feed
+  const handleRepostSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!repostTargetPost) return;
+    if (!token) {
+      router.push('/login?redirect=/feed');
+      return;
+    }
+
+    setIsReposting(true);
+    try {
+      const cleanOriginal = repostTargetPost.content
+        .replace(/🔔\s*\[Tagged for Free Engineer Review:[^\]]+\]\n\n/, '')
+        .replace(/\[POLL:[^\]]+\]/, '')
+        .trim();
+      const repostBody = `🔁 [Reposted from ${repostTargetPost.author.displayName}]\n${
+        repostComment.trim() ? `${repostComment.trim()}\n\n` : ''
+      }❝ ${repostTargetPost.title} — ${cleanOriginal} ❞`;
+
+      const res = await fetch(`${apiUrl}/posts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title: `Repost: ${repostTargetPost.title}`,
+          content: repostBody,
+          category: repostTargetPost.category,
+          postType: repostTargetPost.postType,
+          mediaUrls: repostTargetPost.mediaUrls || [],
+          locationTag: repostTargetPost.locationTag || 'Colombo',
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.data) {
+        setPosts((prev) => [data.data, ...prev]);
+        setRepostTargetPost(null);
+        setRepostComment('');
+      }
+    } catch {
+      alert('Failed to repost.');
+    } finally {
+      setIsReposting(false);
     }
   };
 
@@ -503,45 +637,68 @@ function FeedContent() {
             LEFT SIDEBAR (Facebook Navigation & Shortcuts)
            ======================================================== */}
         <aside className="hidden lg:block lg:col-span-3 space-y-4 sticky top-20 self-start">
-          {/* User Profile Snippet */}
-          <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 shadow-sm flex items-center space-x-3">
-            <div className="relative">
-              <div className="w-11 h-11 rounded-full bg-brand-primary/20 text-brand-primary flex items-center justify-center font-bold text-sm">
-                {user?.profile?.avatarUrl ? (
-                  <img
-                    src={user.profile.avatarUrl}
-                    alt={user.profile.displayName || 'User'}
-                    className="w-11 h-11 rounded-full object-cover"
-                  />
-                ) : (
-                  (user?.profile?.displayName || 'User').substring(0, 2).toUpperCase()
-                )}
-              </div>
-              <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 ring-2 ring-brand-surface" />
+          {/* LinkedIn-Style User Profile Card */}
+          <div className="bg-brand-surface border border-brand-border rounded-2xl overflow-hidden shadow-sm">
+            <div className="h-14 bg-gradient-to-r from-brand-navy via-slate-800 to-brand-blue relative">
+              <span className="absolute top-2.5 right-3 text-[10px] font-bold text-emerald-300 bg-white/10 border border-white/15 px-2 py-0.5 rounded-full">
+                Free Network
+              </span>
             </div>
 
-            <div className="flex-1 min-w-0">
-              <Link
-                href="/profile"
-                className="text-sm font-bold text-brand-text hover:text-brand-primary transition-colors truncate block"
-              >
-                {user ? user.profile?.displayName || 'My Profile' : 'Guest Member'}
-              </Link>
-              <div className="flex items-center space-x-1.5 text-xs text-brand-muted">
+            <div className="px-4 pb-4 -mt-7">
+              <div className="flex items-end justify-between mb-2">
+                <Link href="/profile" className="relative inline-block">
+                  <div className="w-14 h-14 rounded-2xl bg-brand-primary/20 text-brand-primary ring-4 ring-white shadow-md overflow-hidden flex items-center justify-center font-bold text-base bg-white">
+                    {user?.profile?.avatarUrl ? (
+                      <img
+                        src={user.profile.avatarUrl}
+                        alt={user.profile.displayName || 'User'}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      (user?.profile?.displayName || 'User').substring(0, 2).toUpperCase()
+                    )}
+                  </div>
+                  <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 ring-2 ring-white" />
+                </Link>
+
                 {user?.role === UserRole.ENGINEER ? (
-                  <span className="text-emerald-500 flex items-center space-x-1 font-medium">
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                    <span>Verified Pro</span>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-brand-blue border border-blue-200">
+                    <ShieldCheck className="w-3 h-3" /> Verified Pro
                   </span>
                 ) : (
-                  <span>Home Builder</span>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <CheckCircle2 className="w-3 h-3" /> Member
+                  </span>
                 )}
-                {user?.profile?.district && (
-                  <>
-                    <span>•</span>
-                    <span className="truncate">{user.profile.district}</span>
-                  </>
-                )}
+              </div>
+
+              <Link
+                href="/profile"
+                className="text-sm font-extrabold text-brand-text hover:text-brand-primary transition-colors truncate block"
+              >
+                {user ? user.profile?.displayName || 'My Profile' : 'Guest Home Builder'}
+              </Link>
+              <p className="text-[11px] text-brand-muted line-clamp-1 mt-0.5">
+                {user?.engineerProfile?.title ||
+                  (user?.role === UserRole.ENGINEER ? 'Chartered Construction Engineer' : 'Homeowner & Construction Builder')}
+              </p>
+              {user?.profile?.district && (
+                <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-1">
+                  <MapPin className="w-3 h-3 text-rose-500 shrink-0" />
+                  <span>{user.profile.district}, Sri Lanka</span>
+                </p>
+              )}
+
+              <div className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-2 gap-2 text-center">
+                <Link href="/engineers" className="p-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors">
+                  <span className="block text-xs font-extrabold text-brand-navy">{onlineContacts.length}</span>
+                  <span className="text-[10px] text-brand-muted">Verified Engineers</span>
+                </Link>
+                <Link href="/groups" className="p-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors">
+                  <span className="block text-xs font-extrabold text-brand-navy">{groups.length}</span>
+                  <span className="text-[10px] text-brand-muted">Expert Groups</span>
+                </Link>
               </div>
             </div>
           </div>
@@ -791,29 +948,37 @@ function FeedContent() {
                 onClick={() => {
                   if (!token) router.push('/login?redirect=/feed');
                   else {
-                    setPostType(PostType.PROJECT_UPDATE);
+                    setPostType(PostType.QUESTION);
+                    setIncludePoll(true);
                     setShowCreateModal(true);
                   }
                 }}
                 className="flex items-center justify-center space-x-1.5 py-1.5 rounded-xl hover:bg-brand-card text-xs font-semibold text-brand-text transition-colors"
               >
-                <MapPin className="w-4 h-4 text-amber-500" />
-                <span className="hidden sm:inline">Check In Site</span>
+                <Award className="w-4 h-4 text-amber-500" />
+                <span className="hidden sm:inline">Create Poll</span>
               </button>
 
-              <Link
-                href="/groups"
+              <button
+                onClick={() => {
+                  if (!token) router.push('/login?redirect=/feed');
+                  else {
+                    setPostType(PostType.QUESTION);
+                    setTaggedEngineerSpecialty('@Structural & Civil Engineers');
+                    setShowCreateModal(true);
+                  }
+                }}
                 className="flex items-center justify-center space-x-1.5 py-1.5 rounded-xl hover:bg-brand-card text-xs font-semibold text-brand-text transition-colors"
               >
-                <Users className="w-4 h-4 text-blue-500" />
-                <span className="hidden sm:inline">Tag Group</span>
-              </Link>
+                <ShieldCheck className="w-4 h-4 text-blue-600" />
+                <span className="hidden sm:inline">Tag Engineer</span>
+              </button>
             </div>
           </div>
 
-          {/* --- Filter Pills --- */}
+          {/* --- Filter Pills (Including Saved Bookmarks Tab) --- */}
           <div className="flex items-center space-x-2 overflow-x-auto pb-1 scrollbar-none">
-            {['ALL', 'GENERAL', 'QUESTION', 'PROJECT_UPDATE', 'PROFESSIONAL_ADVICE'].map((type) => (
+            {['ALL', 'GENERAL', 'QUESTION', 'PROJECT_UPDATE', 'PROFESSIONAL_ADVICE', 'SAVED'].map((type) => (
               <button
                 key={type}
                 onClick={() => setSelectedType(type)}
@@ -831,10 +996,80 @@ function FeedContent() {
                   ? '❓ Questions'
                   : type === 'PROFESSIONAL_ADVICE'
                   ? '💡 Pro Advice'
+                  : type === 'SAVED'
+                  ? `🔖 Saved (${bookmarkedPosts.size})`
                   : 'General'}
               </button>
             ))}
           </div>
+
+          {/* --- INTERACTIVE LINKEDIN-STYLE CONSTRUCTION POLL CARD --- */}
+          {selectedType === 'ALL' && (
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200">
+                    📊 LIVE COMMUNITY POLL
+                  </span>
+                  <span className="text-[11px] text-slate-500 font-medium">
+                    Sri Lankan Home Builders & IESL Engineers
+                  </span>
+                </div>
+                <span className="text-[11px] font-bold text-brand-blue">
+                  {148 + (featuredPollVote !== null ? 1 : 0)} votes
+                </span>
+              </div>
+
+              <h3 className="text-sm font-extrabold text-slate-900">
+                What is your preferred waterproofing system for flat concrete roof slabs in Sri Lanka&apos;s monsoon climate?
+              </h3>
+
+              <div className="space-y-2">
+                {[
+                  { label: '2-Coat Cementitious Polymer + Screed Slope (SLS Certified)', baseVotes: 68 },
+                  { label: 'PU (Polyurethane) Liquid Membrane + UV Topcoat', baseVotes: 46 },
+                  { label: 'Torch-On Bituminous Membrane Sheet + Protective Tiles', baseVotes: 24 },
+                  { label: 'Add Lightweight Zn/Al Roof Over Concrete Slab', baseVotes: 10 },
+                ].map((opt, idx) => {
+                  const totalVotes = 148 + (featuredPollVote !== null ? 1 : 0);
+                  const optVotes = opt.baseVotes + (featuredPollVote === idx ? 1 : 0);
+                  const pct = Math.round((optVotes / totalVotes) * 100);
+                  const isChosen = featuredPollVote === idx;
+
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setFeaturedPollVote(idx)}
+                      className={`w-full text-left relative overflow-hidden rounded-xl border p-2.5 transition-all ${
+                        isChosen
+                          ? 'border-brand-blue bg-blue-50/30 ring-1 ring-brand-blue'
+                          : 'border-slate-200 hover:border-brand-blue/60 bg-slate-50/50'
+                      }`}
+                    >
+                      <div
+                        className={`absolute inset-y-0 left-0 transition-all duration-500 ${
+                          isChosen ? 'bg-brand-blue/15' : 'bg-slate-200/60'
+                        }`}
+                        style={{ width: `${pct}%` }}
+                      />
+                      <div className="relative z-10 flex items-center justify-between gap-2 text-xs">
+                        <span className={`font-semibold ${isChosen ? 'text-brand-blue font-bold' : 'text-slate-800'}`}>
+                          {isChosen && '✓ '}
+                          {opt.label}
+                        </span>
+                        <span className="font-extrabold text-slate-900 shrink-0">{pct}%</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <p className="text-[11px] text-slate-400">
+                Click any option to vote • Create your own poll using the <span className="font-bold text-slate-600">Create Poll</span> button above
+              </p>
+            </div>
+          )}
 
           {/* --- 3. POSTS FEED --- */}
           {loading ? (
@@ -843,16 +1078,27 @@ function FeedContent() {
                 <div key={i} className="bg-brand-surface border border-brand-border rounded-2xl h-64 animate-pulse" />
               ))}
             </div>
-          ) : posts.length === 0 ? (
+          ) : (selectedType === 'SAVED' ? posts.filter((p) => bookmarkedPosts.has(p.id)) : posts).length === 0 ? (
             <div className="bg-brand-surface border border-brand-border rounded-2xl p-12 text-center space-y-3">
               <Building className="w-12 h-12 text-brand-muted mx-auto" />
-              <h3 className="font-bold text-base text-brand-text">No posts yet</h3>
-              <p className="text-xs text-brand-muted">Be the first to share your construction project or ask a question!</p>
+              <h3 className="font-bold text-base text-brand-text">
+                {selectedType === 'SAVED' ? 'No saved posts yet' : 'No posts yet'}
+              </h3>
+              <p className="text-xs text-brand-muted">
+                {selectedType === 'SAVED'
+                  ? 'Click the bookmark icon on any engineering post or blueprint to save it here for quick site reference!'
+                  : 'Be the first to share your construction project or ask a question!'}
+              </p>
             </div>
           ) : (
-            posts.map((post) => {
+            (selectedType === 'SAVED' ? posts.filter((p) => bookmarkedPosts.has(p.id)) : posts).map((post) => {
               const activeReaction = post.userReaction;
               const reactionInfo = activeReaction ? REACTION_CONFIG[activeReaction] : null;
+              const pollMatch = post.content.match(/\[POLL:\s*([^\]]+)\]/);
+              const pollChoices = pollMatch
+                ? pollMatch[1].split('|').map((s) => s.trim()).filter(Boolean)
+                : [];
+              const repostMatch = post.content.match(/🔁\s*\[Reposted from\s*([^\]]+)\]/);
 
               return (
                 <article
@@ -888,10 +1134,19 @@ function FeedContent() {
                           >
                             {post.author.displayName}
                           </Link>
-                          {post.author.isVerifiedEngineer && (
-                            <span className="inline-flex items-center space-x-0.5 text-blue-600 text-[11px] font-semibold" title="Verified Engineer">
-                              <ShieldCheck className="w-4 h-4 text-blue-600" />
-                              <span>Verified</span>
+                          {post.author.isVerifiedEngineer ? (
+                            <>
+                              <span className="inline-flex items-center space-x-0.5 text-blue-600 text-[11px] font-semibold" title="Verified Engineer">
+                                <ShieldCheck className="w-4 h-4 text-blue-600" />
+                                <span>Verified</span>
+                              </span>
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                🏆 Top Engineering Voice
+                              </span>
+                            </>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              🏡 Active Builder
                             </span>
                           )}
                           {post.groupName && (
@@ -941,11 +1196,86 @@ function FeedContent() {
                   </div>
 
                   {/* Post Content */}
-                  <div className="px-4 space-y-2">
+                  <div className="px-4 space-y-2.5">
+                    {/* LinkedIn "Tagged for Free Engineer Review" Banner */}
+                    {(post.postType === PostType.QUESTION || post.content.includes('[Tagged for Free Engineer Review:')) && (
+                      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl bg-gradient-to-r from-blue-50 via-indigo-50/70 to-emerald-50 border border-blue-200/80">
+                        <div className="flex items-center gap-2 text-[11px] font-bold text-brand-navy">
+                          <ShieldCheck className="w-4 h-4 text-brand-blue shrink-0" />
+                          <span>
+                            {post.content.match(/\[Tagged for Free Engineer Review:\s*([^\]]+)\]/)?.[1]
+                              ? `Tagged for Free Engineer Review: ${post.content.match(/\[Tagged for Free Engineer Review:\s*([^\]]+)\]/)?.[1]}`
+                              : `Open for Free Engineer Review • @${post.category} Specialists`}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!expandedComments[post.id]) toggleComments(post.id);
+                          }}
+                          className="text-[10px] font-extrabold text-emerald-700 bg-white hover:bg-emerald-600 hover:text-white px-2.5 py-1 rounded-lg border border-emerald-200 transition-colors shadow-2xs"
+                        >
+                          {user?.role === UserRole.ENGINEER ? '✍️ Write Pro-Bono Answer' : 'View Engineer Answers'}
+                        </button>
+                      </div>
+                    )}
+
                     <h3 className="text-sm font-bold text-slate-900 leading-snug">{post.title}</h3>
+                    {repostMatch && (
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-bold border border-slate-200">
+                        <RotateCcw className="w-3 h-3 text-brand-blue" />
+                        <span>Reposted from {repostMatch[1]}</span>
+                      </div>
+                    )}
                     <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line">
-                      {post.content}
+                      {post.content
+                        .replace(/🔔\s*\[Tagged for Free Engineer Review:[^\]]+\]\n\n/, '')
+                        .replace(/🔁\s*\[Reposted from[^\]]+\]\n?/, '')
+                        .replace(/\[POLL:[^\]]+\]/, '')
+                        .trim()}
                     </p>
+
+                    {/* Embedded Interactive Post Poll (if attached) */}
+                    {pollChoices.length >= 2 && (
+                      <div className="mt-2 p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                        <div className="flex items-center justify-between text-[11px] font-bold text-slate-600">
+                          <span>📊 Community Poll</span>
+                          <span>{24 + (userPollVotes[post.id] !== undefined ? 1 : 0)} votes</span>
+                        </div>
+                        {pollChoices.map((choice, cIdx) => {
+                          const baseV = (cIdx === 0 ? 12 : cIdx === 1 ? 8 : 4) + (userPollVotes[post.id] === cIdx ? 1 : 0);
+                          const totV = 24 + (userPollVotes[post.id] !== undefined ? 1 : 0);
+                          const pct = Math.round((baseV / totV) * 100);
+                          const isVoted = userPollVotes[post.id] === cIdx;
+                          return (
+                            <button
+                              key={cIdx}
+                              type="button"
+                              onClick={() => setUserPollVotes((prev) => ({ ...prev, [post.id]: cIdx }))}
+                              className={`w-full text-left relative overflow-hidden rounded-xl border p-2 transition-all ${
+                                isVoted
+                                  ? 'border-brand-blue bg-blue-50/40'
+                                  : 'border-slate-200 bg-white hover:border-brand-blue/50'
+                              }`}
+                            >
+                              <div
+                                className={`absolute inset-y-0 left-0 transition-all duration-500 ${
+                                  isVoted ? 'bg-brand-blue/15' : 'bg-slate-200/60'
+                                }`}
+                                style={{ width: `${pct}%` }}
+                              />
+                              <div className="relative z-10 flex items-center justify-between text-xs">
+                                <span className={`font-semibold ${isVoted ? 'text-brand-blue font-bold' : 'text-slate-800'}`}>
+                                  {isVoted && '✓ '}
+                                  {choice}
+                                </span>
+                                <span className="font-bold text-slate-900">{pct}%</span>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
                   {/* Facebook Multi-Image Gallery with Instagram Double-Tap Like */}
@@ -1098,16 +1428,19 @@ function FeedContent() {
                       <span>Comment</span>
                     </button>
 
-                    {/* Share Button */}
+                    {/* LinkedIn Repost / Share Button */}
                     <button
                       onClick={() => {
-                        navigator.clipboard?.writeText(window.location.origin + `/profile/${post.author.id}`);
-                        alert('Post link copied to clipboard!');
+                        if (!token) {
+                          router.push('/login?redirect=/feed');
+                          return;
+                        }
+                        setRepostTargetPost(post);
                       }}
-                      className="flex-1 py-2 rounded-xl flex items-center justify-center space-x-2 transition-colors hover:bg-slate-100 hover:text-slate-900 text-slate-600"
+                      className="flex-1 py-2 rounded-xl flex items-center justify-center space-x-2 transition-colors hover:bg-slate-100 hover:text-brand-blue text-slate-600"
                     >
-                      <Share2 className="w-4 h-4" />
-                      <span>Share</span>
+                      <RotateCcw className="w-4 h-4" />
+                      <span>Repost</span>
                     </button>
 
                     {/* Instagram Bookmark Button */}
@@ -1160,34 +1493,78 @@ function FeedContent() {
                         ) : expandedComments[post.id].length === 0 ? (
                           <p className="text-center text-xs text-slate-400 py-2">No comments yet. Start the conversation!</p>
                         ) : (
-                          expandedComments[post.id].map((comm) => (
-                            <div key={comm.id} className="flex items-start space-x-2.5 text-xs">
-                              <Link href={`/profile/${comm.author.id}`} className="w-7 h-7 rounded-full bg-slate-200 text-slate-700 border border-slate-300 flex items-center justify-center font-bold text-[10px] flex-shrink-0 mt-0.5 hover:opacity-80">
-                                {comm.author.displayName.substring(0, 2).toUpperCase()}
-                              </Link>
-                              <div className="flex-1 space-y-1">
-                                <div className="bg-white border border-slate-200 rounded-2xl px-3 py-2 space-y-0.5 shadow-xs">
-                                  <div className="flex items-center space-x-1.5">
-                                    <Link href={`/profile/${comm.author.id}`} className="font-bold text-slate-900 hover:underline">
-                                      {comm.author.displayName}
-                                    </Link>
-                                    {comm.author.isVerifiedEngineer && (
-                                      <span className="text-blue-600 text-[10px] font-semibold flex items-center">
-                                        <ShieldCheck className="w-3 h-3 mr-0.5" />
-                                        <span>Verified</span>
-                                      </span>
-                                    )}
+                          expandedComments[post.id].map((comm) => {
+                            const isEndorsed = endorsedComments.has(comm.id);
+                            const baseEndorsements = comm.author.isVerifiedEngineer
+                              ? (comm.id.charCodeAt(0) % 5) + 3
+                              : 0;
+                            const totalEndorsements = baseEndorsements + (isEndorsed ? 1 : 0);
+
+                            return (
+                              <div key={comm.id} className="flex items-start space-x-2.5 text-xs">
+                                <Link
+                                  href={`/profile/${comm.author.id}`}
+                                  className="w-7 h-7 rounded-full bg-slate-200 text-slate-700 border border-slate-300 flex items-center justify-center font-bold text-[10px] flex-shrink-0 mt-0.5 hover:opacity-80"
+                                >
+                                  {comm.author.displayName.substring(0, 2).toUpperCase()}
+                                </Link>
+                                <div className="flex-1 space-y-1">
+                                  <div
+                                    className={`rounded-2xl px-3.5 py-2.5 space-y-1 shadow-xs ${
+                                      comm.author.isVerifiedEngineer
+                                        ? 'bg-gradient-to-r from-emerald-50/60 via-white to-blue-50/40 border-l-4 border-l-emerald-500 border border-emerald-200/80'
+                                        : 'bg-white border border-slate-200'
+                                    }`}
+                                  >
+                                    <div className="flex flex-wrap items-center justify-between gap-1.5">
+                                      <div className="flex items-center space-x-1.5">
+                                        <Link href={`/profile/${comm.author.id}`} className="font-bold text-slate-900 hover:underline">
+                                          {comm.author.displayName}
+                                        </Link>
+                                        {comm.author.isVerifiedEngineer && (
+                                          <span className="bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded-full text-[10px] font-bold flex items-center">
+                                            <ShieldCheck className="w-3 h-3 mr-0.5 text-blue-600" />
+                                            <span>IESL Verified Solution</span>
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      {comm.author.isVerifiedEngineer && (
+                                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full">
+                                          ✓ Pro-Bono Guidance
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-slate-800 leading-relaxed">{comm.content}</p>
                                   </div>
-                                  <p className="text-slate-800 leading-relaxed">{comm.content}</p>
-                                </div>
-                                <div className="flex items-center space-x-3 text-[10px] text-slate-500 px-2 font-medium">
-                                  <span>{new Date(comm.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                  <button className="hover:underline font-semibold text-slate-700">Like</button>
-                                  <button className="hover:underline font-semibold text-slate-700">Reply</button>
+
+                                  <div className="flex flex-wrap items-center gap-3 text-[10px] text-slate-500 px-2 font-medium">
+                                    <span>{new Date(comm.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+
+                                    {comm.author.isVerifiedEngineer && (
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleEndorseComment(comm.id)}
+                                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold transition-all ${
+                                          isEndorsed
+                                            ? 'bg-emerald-600 text-white shadow-2xs'
+                                            : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                                        }`}
+                                      >
+                                        <Award className="w-3 h-3" />
+                                        <span>
+                                          {isEndorsed ? 'Endorsed Solution' : 'Endorse Technical Solution'} ({totalEndorsements})
+                                        </span>
+                                      </button>
+                                    )}
+
+                                    <button className="hover:underline font-semibold text-slate-700">Helpful</button>
+                                    <button className="hover:underline font-semibold text-slate-700">Reply</button>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          ))
+                            );
+                          })
                         )}
                       </div>
                     </div>
@@ -1203,50 +1580,244 @@ function FeedContent() {
            ======================================================== */}
         <aside className="hidden lg:block lg:col-span-3 space-y-4 sticky top-20 self-start">
           
-          {/* Active Contacts / Instant Chat */}
-          <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 shadow-sm space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                <h4 className="text-xs font-bold text-brand-text uppercase tracking-wider">
-                  Active Engineers & Contacts
-                </h4>
+          {/* LinkedIn-Style Verified Engineers & Free Consultation Directory */}
+          <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 shadow-sm space-y-3.5">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div>
+                <div className="flex items-center space-x-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <h4 className="text-xs font-extrabold text-brand-navy uppercase tracking-wider">
+                    Verified Engineers
+                  </h4>
+                </div>
+                <p className="text-[10px] text-emerald-600 font-semibold mt-0.5">
+                  100% Free Community Advice & Q&A
+                </p>
               </div>
-              <span className="text-[10px] text-brand-muted">{onlineContacts.length} online</span>
+              <Link
+                href="/engineers"
+                className="text-[11px] font-bold text-brand-blue hover:underline shrink-0"
+              >
+                View all ({onlineContacts.length})
+              </Link>
             </div>
 
-            <div className="space-y-1 divide-y divide-brand-border/30">
-              {onlineContacts.map((contact) => (
-                <div
-                  key={contact.id}
-                  onClick={() => handleOpenContactChat(contact)}
-                  className="pt-2 flex items-center justify-between p-1.5 rounded-xl hover:bg-brand-card cursor-pointer transition-colors group"
-                >
-                  <div className="flex items-center space-x-2.5 min-w-0">
-                    <div className="relative flex-shrink-0">
-                      <img
-                        src={contact.avatar}
-                        alt={contact.name}
-                        className="w-8 h-8 rounded-full object-cover ring-1 ring-brand-border"
-                      />
-                      <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 ring-1 ring-brand-surface" />
+            <div className="space-y-3 divide-y divide-slate-100">
+              {onlineContacts.map((contact) => {
+                const isConnected = connectedIds.has(contact.id);
+                return (
+                  <div
+                    key={contact.id}
+                    className="pt-3 first:pt-0 space-y-2.5"
+                  >
+                    <div className="flex items-start space-x-2.5 min-w-0">
+                      <Link href={`/profile/${contact.id}`} className="relative flex-shrink-0 group">
+                        <img
+                          src={contact.avatar}
+                          alt={contact.name}
+                          className="w-10 h-10 rounded-xl object-cover ring-1 ring-slate-200 group-hover:ring-brand-blue transition-all"
+                        />
+                        <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
+                      </Link>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1 min-w-0">
+                          <Link
+                            href={`/profile/${contact.id}`}
+                            className="text-xs font-extrabold text-slate-900 hover:text-brand-blue truncate transition-colors"
+                          >
+                            {contact.name}
+                          </Link>
+                          {contact.isVerified && (
+                            <ShieldCheck
+                              className="w-3.5 h-3.5 text-brand-blue shrink-0"
+                              title="Verified IESL / CIDA Engineer"
+                            />
+                          )}
+                        </div>
+
+                        <p className="text-[11px] text-slate-600 font-medium line-clamp-1 leading-snug">
+                          {contact.title}
+                        </p>
+
+                        <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-400">
+                          <span className="flex items-center gap-0.5 text-slate-500 font-medium">
+                            <MapPin className="w-2.5 h-2.5 text-rose-500 shrink-0" />
+                            {contact.district}
+                          </span>
+                          <span>•</span>
+                          <span className="text-emerald-600 font-bold">Free Advice</span>
+                        </div>
+                      </div>
                     </div>
+
+                    {/* LinkedIn Action Row: Connect + Free Chat */}
+                    <div className="grid grid-cols-2 gap-1.5 pl-12">
+                      <button
+                        type="button"
+                        onClick={() => handleConnectContact(contact.id)}
+                        disabled={isConnected || connectingId === contact.id}
+                        className={`py-1.5 px-2.5 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 border transition-all ${
+                          isConnected
+                            ? 'bg-emerald-50 border-emerald-200 text-emerald-700 cursor-default'
+                            : 'bg-white border-slate-200 text-slate-700 hover:border-brand-blue hover:text-brand-blue'
+                        }`}
+                      >
+                        {isConnected ? (
+                          <>
+                            <Check className="w-3 h-3 text-emerald-600 shrink-0" />
+                            <span>Connected</span>
+                          </>
+                        ) : (
+                          <>
+                            <UserPlus className="w-3 h-3 text-brand-blue shrink-0" />
+                            <span>Connect</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleOpenContactChat(contact)}
+                        className="py-1.5 px-2.5 rounded-lg text-[11px] font-bold bg-blue-50 hover:bg-brand-blue text-brand-blue hover:text-white border border-blue-100 flex items-center justify-center gap-1 transition-all"
+                      >
+                        <MessageCircle className="w-3 h-3 shrink-0" />
+                        <span>Ask Free</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* LinkedIn "Top Engineering Voices" Weekly Leaderboard */}
+          <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 shadow-sm space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center space-x-1.5 text-xs font-extrabold text-brand-navy uppercase tracking-wider">
+                <Award className="w-4 h-4 text-amber-500" />
+                <span>Top Engineering Voices</span>
+              </div>
+              <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                This Week
+              </span>
+            </div>
+
+            <div className="space-y-2.5">
+              {onlineContacts.slice(0, 3).map((eng, idx) => (
+                <div
+                  key={eng.id}
+                  className="flex items-center justify-between gap-2 p-2 rounded-xl bg-slate-50/70 border border-slate-100 hover:border-amber-300 transition-all"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span
+                      className={`w-5 h-5 rounded-full text-[10px] font-extrabold flex items-center justify-center shrink-0 ${
+                        idx === 0
+                          ? 'bg-amber-400 text-slate-950'
+                          : idx === 1
+                          ? 'bg-slate-300 text-slate-900'
+                          : 'bg-amber-700/80 text-white'
+                      }`}
+                    >
+                      #{idx + 1}
+                    </span>
+                    <img
+                      src={eng.avatar}
+                      alt={eng.name}
+                      className="w-8 h-8 rounded-lg object-cover shrink-0 ring-1 ring-slate-200"
+                    />
                     <div className="min-w-0">
-                      <p className="text-xs font-bold text-brand-text group-hover:text-brand-primary truncate transition-colors">
-                        {contact.name}
+                      <Link
+                        href={`/profile/${eng.id}`}
+                        className="text-xs font-bold text-slate-900 hover:text-brand-blue truncate block"
+                      >
+                        {eng.name}
+                      </Link>
+                      <p className="text-[10px] text-emerald-700 font-semibold truncate">
+                        🏆 {48 - idx * 11} Free Solutions • 99% Helpful
                       </p>
-                      <p className="text-[10px] text-brand-muted truncate">{contact.district}</p>
                     </div>
                   </div>
 
                   <button
-                    className="p-1 rounded-lg text-brand-muted group-hover:text-brand-primary group-hover:bg-brand-primary/10 transition-colors"
-                    title="Send instant message"
+                    type="button"
+                    onClick={() => handleOpenContactChat(eng)}
+                    className="px-2 py-1 rounded-lg bg-white hover:bg-brand-blue text-brand-blue hover:text-white border border-slate-200 text-[10px] font-bold shrink-0 transition-colors"
                   >
-                    <MessageCircle className="w-3.5 h-3.5" />
+                    Ask
                   </button>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* LinkedIn Live Audio / Free Engineer Q&A Sessions Widget (Batch C Item 4) */}
+          <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 shadow-sm space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div>
+                <div className="flex items-center space-x-1.5 text-xs font-extrabold text-brand-navy uppercase tracking-wider">
+                  <span className="text-sm">🎙️</span>
+                  <span>Free Live Q&A Sessions</span>
+                </div>
+                <p className="text-[10px] text-slate-500 font-medium mt-0.5">
+                  LinkedIn-style live sessions by IESL Engineers
+                </p>
+              </div>
+              <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                100% Free
+              </span>
+            </div>
+
+            <div className="space-y-2.5">
+              {[
+                {
+                  id: 'live-nbro-slope',
+                  title: 'NBRO Retaining Wall & Slope Drainage Clinic',
+                  host: onlineContacts[0]?.name || 'Eng. Anura Wickramasinghe',
+                  time: 'Sat, 6:00 PM IST • Live Audio',
+                  attendees: 142,
+                },
+                {
+                  id: 'live-slab-waterproof',
+                  title: 'Monsoon Roof Slab Curing & Waterproofing Q&A',
+                  host: onlineContacts[1]?.name || 'Eng. Kamal Silva',
+                  time: 'Sun, 5:30 PM IST • Live Q&A',
+                  attendees: 198,
+                },
+              ].map((sess) => {
+                const isRsvped = rsvpedSessions.has(sess.id);
+                const count = sess.attendees + (isRsvped ? 1 : 0);
+                return (
+                  <div
+                    key={sess.id}
+                    className="p-3 rounded-xl bg-slate-50/80 border border-slate-200/80 space-y-2 hover:border-brand-blue/40 transition-all"
+                  >
+                    <div className="flex items-center justify-between text-[10px] font-bold">
+                      <span className="text-brand-blue">{sess.time}</span>
+                      <span className="text-slate-500">{count} builders attending</span>
+                    </div>
+                    <h5 className="text-xs font-extrabold text-slate-900 leading-snug">
+                      {sess.title}
+                    </h5>
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-[10px] font-semibold text-slate-600 truncate max-w-[140px]">
+                        Host: {sess.host}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => toggleRsvpSession(sess.id)}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
+                          isRsvped
+                            ? 'bg-emerald-600 text-white shadow-2xs'
+                            : 'bg-white text-brand-blue border border-blue-200 hover:bg-brand-blue hover:text-white'
+                        }`}
+                      >
+                        {isRsvped ? '✓ Registered Free' : '+ RSVP Free'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -1520,22 +2091,47 @@ function FeedContent() {
                 </div>
               </div>
 
-              {/* Category */}
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                  Construction Category
-                </label>
-                <select
-                  value={postCategory}
-                  onChange={(e) => setPostCategory(e.target.value)}
-                  className="w-full bg-slate-50 focus:bg-white text-slate-900 rounded-xl px-3 py-2.5 border border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-blue"
-                >
-                  {CONSTRUCTION_CATEGORIES.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
+              {/* Category & Tag Engineer for Free Review */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                    Construction Category
+                  </label>
+                  <select
+                    value={postCategory}
+                    onChange={(e) => setPostCategory(e.target.value)}
+                    className="w-full bg-slate-50 focus:bg-white text-slate-900 rounded-xl px-3 py-2.5 border border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                  >
+                    {CONSTRUCTION_CATEGORIES.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-emerald-700 uppercase mb-1">
+                    🔔 Tag Engineer for Free Review
+                  </label>
+                  <select
+                    value={taggedEngineerSpecialty}
+                    onChange={(e) => setTaggedEngineerSpecialty(e.target.value)}
+                    className="w-full bg-emerald-50/60 focus:bg-white text-slate-900 rounded-xl px-3 py-2.5 border border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                  >
+                    <option value="">No Tag (General Community)</option>
+                    <option value="@Structural & Foundation Engineers">@Structural & Foundation Engineers</option>
+                    <option value="@NBRO Geotechnical & Slope Specialists">@NBRO Geotechnical & Slope Specialists</option>
+                    <option value="@Chartered Quantity Surveyors (BOQ)">@Chartered Quantity Surveyors (BOQ)</option>
+                    <option value="@MEP & Solar PV Systems Engineers">@MEP & Solar PV Systems Engineers</option>
+                    <option value="@Waterproofing & Concrete Specialists">@Waterproofing & Concrete Specialists</option>
+                    {onlineContacts.map((eng) => (
+                      <option key={eng.id} value={`@${eng.name} (${eng.district})`}>
+                        @{eng.name} ({eng.district})
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* Content */}
@@ -1551,6 +2147,47 @@ function FeedContent() {
                   className="w-full bg-slate-50 focus:bg-white text-slate-900 placeholder:text-slate-400 rounded-xl p-3 border border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-blue"
                   required
                 />
+              </div>
+
+              {/* Optional Interactive Poll Builder */}
+              <div className="p-3.5 rounded-xl bg-amber-50/50 border border-amber-200/80 space-y-2.5">
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="text-[11px] font-extrabold text-amber-900 uppercase flex items-center gap-1.5">
+                    <span>📊 Attach Interactive Construction Poll</span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={includePoll}
+                    onChange={(e) => setIncludePoll(e.target.checked)}
+                    className="w-4 h-4 accent-brand-blue rounded"
+                  />
+                </label>
+
+                {includePoll && (
+                  <div className="space-y-2 pt-1">
+                    <input
+                      type="text"
+                      value={pollOption1}
+                      onChange={(e) => setPollOption1(e.target.value)}
+                      placeholder="Poll Option 1 (e.g., Ready-Mix Concrete Grade 30)"
+                      className="w-full bg-white text-slate-900 rounded-lg px-3 py-2 border border-amber-300 text-xs"
+                    />
+                    <input
+                      type="text"
+                      value={pollOption2}
+                      onChange={(e) => setPollOption2(e.target.value)}
+                      placeholder="Poll Option 2 (e.g., Site-Mixed with Waterproof Admixture)"
+                      className="w-full bg-white text-slate-900 rounded-lg px-3 py-2 border border-amber-300 text-xs"
+                    />
+                    <input
+                      type="text"
+                      value={pollOption3}
+                      onChange={(e) => setPollOption3(e.target.value)}
+                      placeholder="Poll Option 3 (Optional)"
+                      className="w-full bg-white text-slate-900 rounded-lg px-3 py-2 border border-amber-300 text-xs"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Photo Upload & Previews */}
@@ -1679,6 +2316,73 @@ function FeedContent() {
                   className="px-5 py-2.5 rounded-xl bg-brand-blue hover:bg-blue-700 text-white font-bold shadow-md disabled:opacity-40"
                 >
                   {isUploadingStory ? 'Sharing...' : 'Share to Story'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          LINKEDIN-STYLE REPOST WITH THOUGHTS MODAL
+         ======================================================== */}
+      {repostTargetPost && (
+        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white text-slate-900 border border-slate-200 rounded-2xl w-full max-w-md shadow-2xl p-5 space-y-4 text-xs">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2">
+                <RotateCcw className="w-4 h-4 text-brand-blue" />
+                <h3 className="font-bold text-sm text-slate-900">Repost to BuildLink Feed</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRepostTargetPost(null)}
+                className="text-slate-400 hover:text-slate-700 p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleRepostSubmit} className="space-y-3.5">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Add your thoughts (Optional)
+                </label>
+                <textarea
+                  rows={3}
+                  value={repostComment}
+                  onChange={(e) => setRepostComment(e.target.value)}
+                  placeholder="Share why this engineering insight or site milestone is useful for fellow builders..."
+                  className="w-full bg-slate-50 focus:bg-white text-slate-900 rounded-xl p-3 border border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                />
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                <p className="font-bold text-slate-900">
+                  Original by {repostTargetPost.author.displayName}
+                </p>
+                <p className="font-semibold text-brand-blue line-clamp-1">
+                  {repostTargetPost.title}
+                </p>
+                <p className="text-slate-600 line-clamp-2">
+                  {repostTargetPost.content}
+                </p>
+              </div>
+
+              <div className="pt-2 flex justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setRepostTargetPost(null)}
+                  className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isReposting}
+                  className="px-5 py-2.5 rounded-xl bg-brand-blue hover:bg-blue-700 text-white font-bold shadow-md disabled:opacity-40"
+                >
+                  {isReposting ? 'Reposting...' : '🔁 Repost Now'}
                 </button>
               </div>
             </form>
